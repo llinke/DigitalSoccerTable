@@ -13,11 +13,15 @@
 
 //#define PAUSE_AFTER_GOAL
 
+#define BUTTONS_ON_I2C
+
 volatile bool gameRunning = false;
 volatile uint32_t mainButtonAt = 0;
 volatile uint32_t settingsButtonAt = 0;
 const int buttonLockDuration = 100;
 const int mbResetAfter = 3000;
+
+volatile bool buttonPressed = false;
 
 int goals[] = {0, 0};
 volatile bool wasGoal = false;
@@ -45,13 +49,26 @@ void setup()
   //display.flipScreenVertically();
   drawDisplay();
 
+#ifdef BUTTONS_ON_I2C
+  Wire.setClock(I2C_BUS_SPEED);
+  expander.pinMode(P0, INPUT_PULLUP);
+  expander.pinMode(P1, INPUT_PULLUP);
+  expander.pinMode(P2, INPUT_PULLUP);
+  expander.pinMode(P3, INPUT_PULLUP);
+  expander.pinMode(P4, INPUT_PULLUP);
+  expander.pinMode(P5, INPUT_PULLUP);
+  expander.begin();
+
+  attachInterrupt(I2C_INT_PIN, interruptFromExpander, FALLING);
+#else
   pinMode(BUTTON_TEAM_1_PIN, INPUT_PULLUP);
   pinMode(BUTTON_TEAM_2_PIN, INPUT_PULLUP);
-  pinMode(BUTTON_MAIN_PIN, INPUT_PULLUP);
-  pinMode(BUTTON_SETTINGS_PIN, INPUT);
-
   attachInterrupt(BUTTON_TEAM_1_PIN, goalTeam1, FALLING);
   attachInterrupt(BUTTON_TEAM_2_PIN, goalTeam2, FALLING);
+#endif
+
+  pinMode(BUTTON_MAIN_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_SETTINGS_PIN, INPUT);
   attachInterrupt(BUTTON_MAIN_PIN, mainButtonChanged, CHANGE);
   attachInterrupt(BUTTON_SETTINGS_PIN, settingsButton, CHANGE);
 }
@@ -68,9 +85,51 @@ void loop()
     wasGoal = false;
   }
 
+#ifdef BUTTONS_ON_I2C
+  handleButtonsOnExpander();
+#endif
+
   delay(0);
   yield();
 }
+
+void interruptFromExpander()
+{
+  buttonPressed = true;
+}
+
+#ifdef BUTTONS_ON_I2C
+void handleButtonsOnExpander()
+{
+  if (!buttonPressed)
+    return;
+
+  buttonPressed = false;
+  Serial.print("Expander: ");
+  int digRead = 0;
+  for (int p = 0; p < 6; p++)
+  {
+    digRead = expander.digitalRead(p);
+    Serial.print(digRead);
+    Serial.print("|");
+  }
+  Serial.println(".");
+
+  PCF8574::DigitalInput di = expander.digitalReadAll();
+  if (di.P0 == LOW ||
+      di.P1 == LOW ||
+      di.P2 == LOW)
+  {
+    goalTeam1();
+  }
+  if (di.P3 == LOW ||
+      di.P4 == LOW ||
+      di.P5 == LOW)
+  {
+    goalTeam2();
+  }
+}
+#endif
 
 void goalTeam1()
 {
