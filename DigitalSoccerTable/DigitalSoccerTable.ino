@@ -50,21 +50,44 @@ void setup()
   drawDisplay();
 
 #ifdef BUTTONS_ON_I2C
+  Serial.print("PCF8574: setting bus speed to ");
+  Serial.print(I2C_BUS_SPEED);
+  Serial.println(".");
   Wire.setClock(I2C_BUS_SPEED);
-  expander.pinMode(P0, INPUT_PULLUP);
-  expander.pinMode(P1, INPUT_PULLUP);
-  expander.pinMode(P2, INPUT_PULLUP);
-  expander.pinMode(P3, INPUT_PULLUP);
-  expander.pinMode(P4, INPUT_PULLUP);
-  expander.pinMode(P5, INPUT_PULLUP);
-  expander.begin();
 
-  attachInterrupt(I2C_INT_PIN, interruptFromExpander, FALLING);
+  Serial.println("PCF8574: setting PINs.");
+  expander.pinMode(0, INPUT_PULLUP);
+  expander.pinMode(1, INPUT_PULLUP);
+  expander.pinMode(2, INPUT_PULLUP);
+  expander.pinMode(3, INPUT_PULLUP);
+  expander.pinMode(4, INPUT_PULLUP);
+  expander.pinMode(5, INPUT_PULLUP);
+  Serial.print("PCF8574: use I2C address ");
+  Serial.print(I2C_EXPANDER_ADDRESS);
+  Serial.println(".");
+
+  Serial.println("PCF8574: attaching ISR handler.");
+  //expander.enableInterrupt(I2C_INT_PIN, ISRgateway);
+  pinMode(I2C_INT_PIN, INPUT_PULLUP);
+  attachInterrupt(I2C_INT_PIN, ISRgateway, FALLING);
+
+  Serial.println("PCF8574: attaching PIN handler.");
+  /* Attach a software interrupt on pin 3 of the PCF8574 */
+  expander.attachInterrupt(0, goalButtonTeam1, FALLING);
+  expander.attachInterrupt(1, goalSensorTeam1, RISING);
+  expander.attachInterrupt(2, goalSensorTeam1, RISING);
+  expander.attachInterrupt(3, goalButtonTeam2, FALLING);
+  expander.attachInterrupt(4, goalSensorTeam2, RISING);
+  expander.attachInterrupt(5, goalSensorTeam2, RISING);
+
+  Serial.println("PCF8574: start listening.");
+  expander.begin(I2C_EXPANDER_ADDRESS);
 #else
+  Serial.println("Attaching direct handlers for goal buttons.");
   pinMode(BUTTON_TEAM_1_PIN, INPUT_PULLUP);
   pinMode(BUTTON_TEAM_2_PIN, INPUT_PULLUP);
-  attachInterrupt(BUTTON_TEAM_1_PIN, goalTeam1, FALLING);
-  attachInterrupt(BUTTON_TEAM_2_PIN, goalTeam2, FALLING);
+  attachInterrupt(BUTTON_TEAM_1_PIN, goalButtonTeam1, FALLING);
+  attachInterrupt(BUTTON_TEAM_2_PIN, goalButtonTeam2, FALLING);
 #endif
 
   pinMode(BUTTON_MAIN_PIN, INPUT_PULLUP);
@@ -86,60 +109,81 @@ void loop()
   }
 
 #ifdef BUTTONS_ON_I2C
-  handleButtonsOnExpander();
+  if (buttonPressed)
+  {
+    Serial.println("PCF8574: change of buttons' state handled.");
+    buttonPressed = false;
+  }
+/*
+  else
+  {
+    uint8_t intPin = digitalRead(I2C_INT_PIN);
+    if (intPin == 0) // && !buttonPressed)
+    {
+      Serial.print("PCF8574: I2C_INT_PIN is ");
+      Serial.print(intPin);
+      Serial.println(", manually checking for updates...");
+      expander.checkForInterrupt();
+      dumpI2CPins();
+    }
+  }
+*/
 #endif
 
   delay(0);
   yield();
 }
 
-void interruptFromExpander()
+void ISRgateway()
 {
-  buttonPressed = true;
+  if (false) //wasGoal)
+  {
+    expander.read(); // Read to reset INT trigger
+    buttonPressed = false;
+    //Serial.println("PCF8574: change of buttons' state IGNORED in ISRgateway.");
+  }
+  else
+  {
+    expander.checkForInterrupt();
+    buttonPressed = true;
+    Serial.println("PCF8574: change of buttons' state detected in ISRgateway.");
+  }
 }
 
 #ifdef BUTTONS_ON_I2C
-void handleButtonsOnExpander()
+void dumpI2CPins()
 {
-  if (!buttonPressed)
-    return;
-
-  buttonPressed = false;
-  Serial.print("Expander: ");
+  Serial.print("PCF8574: ");
   int digRead = 0;
-  for (int p = 0; p < 6; p++)
+  for (int p = 0; p < 8; p++)
   {
     digRead = expander.digitalRead(p);
     Serial.print(digRead);
     Serial.print("|");
   }
   Serial.println(".");
-
-  PCF8574::DigitalInput di = expander.digitalReadAll();
-  if (di.P0 == LOW ||
-      di.P1 == LOW ||
-      di.P2 == LOW)
-  {
-    goalTeam1();
-  }
-  if (di.P3 == LOW ||
-      di.P4 == LOW ||
-      di.P5 == LOW)
-  {
-    goalTeam2();
-  }
 }
 #endif
 
-void goalTeam1()
+void goalButtonTeam1()
 {
   Serial.println("Button TEAM 1 pressed.");
   goalScoredFor(0);
 }
+void goalSensorTeam1()
+{
+  Serial.println("Sensor TEAM 1 triggered.");
+  goalScoredFor(0);
+}
 
-void goalTeam2()
+void goalButtonTeam2()
 {
   Serial.println("Button TEAM 2 pressed.");
+  goalScoredFor(1);
+}
+void goalSensorTeam2()
+{
+  Serial.println("Sensor TEAM 2 triggered.");
   goalScoredFor(1);
 }
 

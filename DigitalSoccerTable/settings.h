@@ -27,4 +27,5 @@ SSD1306Wire display(I2C_DISPLAY_ADDRESS, I2C_SDA_PIN, I2C_SDC_PIN); // I2C OLED
 //OLEDDisplayUi ui(&display);
 
 // Digital GPIO expander over I2C
-PCF8574 expander(I2C_EXPANDER_ADDRESS);
+//PCF8574 expander(I2C_EXPANDER_ADDRESS);
+PCF8574 expander;
