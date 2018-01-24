@@ -3,11 +3,8 @@
 #define BUTTON_MAIN_PIN D7
 #define BUTTON_SETTINGS_PIN D8
 
-// >>> Uncomment one of the following 2 lines to define which OLED display interface type you are using
-//#define spiOLED
 #define i2cOLED
 #include "SSD1306Wire.h"
-//#include "OLEDDisplayUi.h"
 
 #include "PCF8574.h"
 
@@ -27,5 +24,4 @@ SSD1306Wire display(I2C_DISPLAY_ADDRESS, I2C_SDA_PIN, I2C_SDC_PIN); // I2C OLED
 //OLEDDisplayUi ui(&display);
 
 // Digital GPIO expander over I2C
-//PCF8574 expander(I2C_EXPANDER_ADDRESS);
 PCF8574 expander;

@@ -236,29 +236,39 @@ void PCF8574::checkForInterrupt()
 
 		/* Check for interrupt handler */
 		if (!_intCallback[i])
+		{
 			continue;
+		}
 
 		/* Check for interrupt event */
 		switch (_intMode[i])
 		{
 		case CHANGE:
 			if ((1 << i) & (_PIN ^ _oldPIN))
+			{
 				_intCallback[i]();
+			}
 			break;
 
 		case LOW:
 			if (!(_PIN & (1 << i)))
+			{
 				_intCallback[i]();
+			}
 			break;
 
 		case FALLING:
 			if ((_oldPIN & (1 << i)) && !(_PIN & (1 << i)))
+			{
 				_intCallback[i]();
+			}
 			break;
 
 		case RISING:
 			if (!(_oldPIN & (1 << i)) && (_PIN & (1 << i)))
+			{
 				_intCallback[i]();
+			}
 			break;
 		}
 	}
