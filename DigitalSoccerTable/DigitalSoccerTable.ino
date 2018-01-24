@@ -456,6 +456,7 @@ void drawDisplay()
   // clear the display
   display.clear();
 
+  // -- HEADERS ("Heim" / "Gast")
   display.setColor(OLEDDISPLAY_COLOR::WHITE);
   display.setFont(Dialog_plain_12);
   display.setTextAlignment(TEXT_ALIGN_CENTER);
@@ -463,29 +464,40 @@ void drawDisplay()
   display.drawString(32, 0, "HEIM");
   display.drawString(96, 0, "GAST");
 
+  // -- GOALS ("0 : 0")
   display.setFont(Nimbus_Sans_L_Regular_Condensed_32);
   char goals_str[3];
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   display.drawString(64, 12, ":");
-  //sprintf(goals_str, "%02d", goals[0]);
-  sprintf(goals_str, "%d\n", goals[0]);
+  //sprintf(goals_str, "%02d", goals[0]); // with leading zero
+  sprintf(goals_str, "%d\n", goals[0]); // without leading zero
   display.drawString(32, 12, goals_str);
-  //sprintf(goals_str, "%02d", goals[1]);
-  sprintf(goals_str, "%d\n", goals[1]);
+  //sprintf(goals_str, "%02d", goals[1]); // with leading zero
+  sprintf(goals_str, "%d\n", goals[1]); // without leading zero
   display.drawString(96, 12, goals_str);
 
+  // -- PROGRESS / REMAINING TIME
   int progbar = (gameTimeProgress * 128) / 100;
   display.drawRect(0, 50, 128, 14);
-  if (gameRunning && !gamePaused)
+  if (gameRunning)
   {
-    display.fillRect(0, 50, progbar, 14);
+    if (gamePaused)
+    {
+      // Outline only when game is paused
+      display.drawRect(0, 50, progbar, 14);
+    }
+    else
+    {
+      // Filled box when game is running
+      display.fillRect(0, 50, progbar, 14);
+    }
   }
   display.setFont(Dialog_plain_12);
   char time_str[6];
   int time_s = gameTimeRemain % 60;
   int time_m = (gameTimeRemain - time_s) / 60;
   sprintf(time_str, "%02d:%02d\n", time_m, time_s);
-  if (gameRunning && !gamePaused)
+  if (gameRunning)
   {
     if (gameTimeProgress < 50)
     {
@@ -496,24 +508,30 @@ void drawDisplay()
     else
     {
       display.setTextAlignment(TEXT_ALIGN_RIGHT);
-      display.setColor(OLEDDISPLAY_COLOR::BLACK);
+      // Inverse color because progress bar is only filled when game is running
+      display.setColor(OLEDDISPLAY_COLOR::INVERSE);
+      //display.setColor(OLEDDISPLAY_COLOR::BLACK);
       display.drawString(progbar - 2, 50, time_str);
     }
   }
   else
   {
+    // When game is not started, show time centered
     display.setTextAlignment(TEXT_ALIGN_CENTER);
     display.setColor(OLEDDISPLAY_COLOR::WHITE);
     display.drawString(64, 50, time_str);
   }
 
+  // Alternative 1: separate headers by crossed lines
   /*
   display.setColor(OLEDDISPLAY_COLOR::WHITE);
   display.drawVerticalLine(64, 0, 50);
   display.drawHorizontalLine(0, 14, 128);
   */
+  // Alternative 2: highlight headers by filled rectangle
   display.setColor(OLEDDISPLAY_COLOR::INVERSE);
   display.fillRect(0, 0, 128, 14);
+  // Outline around whole display
   display.setColor(OLEDDISPLAY_COLOR::WHITE);
   display.drawRect(0, 0, 128, 64);
 
