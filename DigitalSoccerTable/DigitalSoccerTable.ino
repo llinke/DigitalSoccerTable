@@ -35,6 +35,7 @@
 //#define PAUSE_AFTER_GOAL
 
 #define BUTTONS_ON_I2C
+#define BUTTONS_MAIN_CFG_ON_I2C
 
 // **************************************************
 // *** Constants Definitions
@@ -57,6 +58,8 @@ volatile bool buttonPressedOnI2C = false;
 volatile bool updateOledRequired = false;
 
 // [Game Control]
+String teamName1 = "HEIM"; //"Dortmund";
+String teamName2 = "GAST"; //"Bayern";
 volatile bool gameRunning = false;
 volatile bool gamePaused = false;
 volatile bool mainButtonReleased = false;
@@ -93,7 +96,7 @@ void setup()
 
   // Initialize OLED display
   display.init();
-  //display.flipScreenVertically();
+  display.flipScreenVertically();
   drawDisplay();
 
   // Wire buttons and events (I2C or directly connected)
@@ -104,12 +107,14 @@ void setup()
   Wire.setClock(I2C_BUS_SPEED);
 
   DEBUG_PRINTLN("PCF8574: setting PINs.");
-  expander.pinMode(0, INPUT_PULLUP);
-  expander.pinMode(1, INPUT_PULLUP);
-  expander.pinMode(2, INPUT_PULLUP);
-  expander.pinMode(3, INPUT_PULLUP);
-  expander.pinMode(4, INPUT_PULLUP);
-  expander.pinMode(5, INPUT_PULLUP);
+  expander.pinMode(0, INPUT_PULLUP); // Goal 1, button
+  expander.pinMode(1, INPUT_PULLUP); // Goal 1, sensor
+  expander.pinMode(2, INPUT_PULLUP); // Goal 1, sensor
+  expander.pinMode(3, INPUT_PULLUP); // Goal 2, button
+  expander.pinMode(4, INPUT_PULLUP); // Goal 2, sensor
+  expander.pinMode(5, INPUT_PULLUP); // Goal 2, sensor
+  expander.pinMode(6, INPUT_PULLUP); // Main button
+  expander.pinMode(7, INPUT_PULLUP); // Settings button
   DEBUG_PRINT("PCF8574: use I2C address ");
   DEBUG_PRINT(I2C_EXPANDER_ADDRESS);
   DEBUG_PRINTLN(".");
@@ -119,30 +124,40 @@ void setup()
   pinMode(I2C_INT_PIN, INPUT_PULLUP);
   attachInterrupt(I2C_INT_PIN, ISRgateway, FALLING);
 
-  DEBUG_PRINTLN("PCF8574: attaching PIN handler.");
+  DEBUG_PRINTLN("PCF8574: attaching goal triggers.");
   /* Attach a software interrupt on pin 3 of the PCF8574 */
-  expander.attachInterrupt(0, onGoalButtonTeam1, FALLING);
-  expander.attachInterrupt(1, onGoalSensorTeam1, RISING);
-  expander.attachInterrupt(2, onGoalSensorTeam1, RISING);
-  expander.attachInterrupt(3, onGoalButtonTeam2, FALLING);
-  expander.attachInterrupt(4, onGoalSensorTeam2, RISING);
-  expander.attachInterrupt(5, onGoalSensorTeam2, RISING);
+  expander.attachInterrupt(0, onGoalButtonTeam1, FALLING); // Manual button is pulling DOWN
+  expander.attachInterrupt(1, onGoalSensorTeam1, RISING);  // IR _reflection_ trigger pulls UP
+  expander.attachInterrupt(2, onGoalSensorTeam1, RISING);  // IR v trigger pulls UP
+  //expander.attachInterrupt(2, onGoalSensorTeam1, FALLING); // IR _interruption_ trigger pulls DOWN
+  expander.attachInterrupt(3, onGoalButtonTeam2, FALLING); // Manual button is pulling DOWN
+  expander.attachInterrupt(4, onGoalSensorTeam2, RISING);  // IR _reflection_ trigger pulls UP
+  expander.attachInterrupt(5, onGoalSensorTeam2, RISING);  // IR _reflection_ trigger pulls UP
+  //expander.attachInterrupt(5, onGoalSensorTeam2, FALLING); // IR _interruption_ trigger pulls DOWN
+
+#ifdef BUTTONS_MAIN_CFG_ON_I2C
+  DEBUG_PRINTLN("PCF8574: attaching main/cfg buttons.");
+  expander.attachInterrupt(6, onMainButton, CHANGE);     // Main button; must be able to handle long press to reset
+  expander.attachInterrupt(7, onSettingsButton, RISING); // Settings button; safer to handle when released
+#endif
 
   DEBUG_PRINTLN("PCF8574: start listening.");
   expander.begin(I2C_EXPANDER_ADDRESS);
 #else
   DEBUG_PRINTLN("Attaching direct handlers for goal buttons.");
   pinMode(BUTTON_TEAM_1_PIN, INPUT_PULLUP);
-  pinMode(BUTTON_TEAM_2_PIN, INPUT_PULLUP);
   attachInterrupt(BUTTON_TEAM_1_PIN, onGoalButtonTeam1, FALLING);
+  pinMode(BUTTON_TEAM_2_PIN, INPUT_PULLUP);
   attachInterrupt(BUTTON_TEAM_2_PIN, onGoalButtonTeam2, FALLING);
 #endif
 
+#ifndef BUTTONS_MAIN_CFG_ON_I2C
+  DEBUG_PRINTLN("Attaching direct handlers for main/cfg buttons.");
   pinMode(BUTTON_MAIN_PIN, INPUT_PULLUP);
   attachInterrupt(BUTTON_MAIN_PIN, onMainButton, CHANGE);
-
   pinMode(BUTTON_SETTINGS_PIN, INPUT);
   attachInterrupt(BUTTON_SETTINGS_PIN, onSettingsButton, RISING);
+#endif
 }
 #pragma endregion
 
@@ -263,7 +278,11 @@ void goalScoredByTeam(int team)
 // [Main Button]
 void onMainButton()
 {
+#ifdef BUTTONS_MAIN_CFG_ON_I2C
+  uint8_t val = expander.digitalRead(6);
+#else
   int val = digitalRead(BUTTON_MAIN_PIN);
+#endif
   if (val == 0)
   {
     //DEBUG_PRINTLN("Button MAIN pressed.");
@@ -298,17 +317,26 @@ void handleMainButton()
   DEBUG_PRINT(pressedFor);
   DEBUG_PRINT("ms: ");
 
-  if (pressedFor < resetGameAfter)
-  {
-    gameRunning = !gameRunning;
-    updateOledRequired = true;
-    DEBUG_PRINTLN(gameRunning ? "game started." : "games paused.");
-  }
-  else
+  if (pressedFor > resetGameAfter)
   {
     gameRunning = false;
     DEBUG_PRINTLN("resetting game.");
     resetGame();
+  }
+  else
+  {
+    if (!gameRunning)
+    {
+      // Start game if not started
+      gameRunning = true;
+    }
+    else
+    {
+      // Pause/Unpause if was started
+      gamePaused = !gamePaused;
+    }
+    updateOledRequired = true;
+    DEBUG_PRINTLN(gameRunning ? "game started." : "games paused.");
   }
 
   mainButtonReleased = false;
@@ -389,11 +417,8 @@ void updateGoalStats()
   lockedGoalTriggersAt = millis();
   gamePaused = true;
 #ifdef PAUSE_AFTER_GOAL
-  gameRunning = false;
+  gamePaused = true;
 #endif
-  wasGoal = false;
-  wasGoalForTeam = -1;
-
   DEBUG_PRINT("Goal scored for team ");
   DEBUG_PRINT(wasGoalForTeam + 1);
   DEBUG_PRINT(", standing: ");
@@ -401,6 +426,9 @@ void updateGoalStats()
   DEBUG_PRINT(":");
   DEBUG_PRINT(goals[1]);
   DEBUG_PRINTLN(".");
+
+  wasGoal = false;
+  wasGoalForTeam = -1;
 
   // Require update of OLED display
   updateOledRequired = true;
@@ -412,12 +440,13 @@ void updateGameTime(int decBy)
   {
     gameTimeRemain += decBy;
   }
-  /*
-  if (gameTimeRemain < 0)
+  if (gameTimeRemain <= 0) // Game ended
   {
-    gameTimeRemain = gameTimeMax;
+    gameRunning = false;
+    gamePaused = true;
+    //gameTimeRemain = gameTimeMax;
   }
-  */
+
   gameTimeProgress = (gameTimeRemain * 100) / gameTimeMax;
   DEBUG_PRINT("Remaining time: ");
   DEBUG_PRINT(gameTimeRemain);
@@ -461,8 +490,8 @@ void drawDisplay()
   display.setFont(Dialog_plain_12);
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   //display.drawString(64, 0, ":");
-  display.drawString(32, 0, "HEIM");
-  display.drawString(96, 0, "GAST");
+  display.drawString(32, 0, teamName1);
+  display.drawString(96, 0, teamName2);
 
   // -- GOALS ("0 : 0")
   display.setFont(Nimbus_Sans_L_Regular_Condensed_32);
@@ -497,7 +526,14 @@ void drawDisplay()
   int time_s = gameTimeRemain % 60;
   int time_m = (gameTimeRemain - time_s) / 60;
   sprintf(time_str, "%02d:%02d\n", time_m, time_s);
-  if (gameRunning)
+  if (!gameRunning)
+  {
+    // When game is not started, show time centered
+    display.setTextAlignment(TEXT_ALIGN_CENTER);
+    display.setColor(OLEDDISPLAY_COLOR::WHITE);
+    display.drawString(64, 50, time_str);
+  }
+  else
   {
     if (gameTimeProgress < 50)
     {
@@ -513,13 +549,6 @@ void drawDisplay()
       //display.setColor(OLEDDISPLAY_COLOR::BLACK);
       display.drawString(progbar - 2, 50, time_str);
     }
-  }
-  else
-  {
-    // When game is not started, show time centered
-    display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.setColor(OLEDDISPLAY_COLOR::WHITE);
-    display.drawString(64, 50, time_str);
   }
 
   // Alternative 1: separate headers by crossed lines
