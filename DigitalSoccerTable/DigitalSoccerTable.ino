@@ -1,41 +1,53 @@
-// Uncomment to enable printing debug messages.
+// **************************************************
+// *** Compiler Flags
+// **************************************************
+// --- WiFi -----------------------------------------
+//#define INCLUDE_WIFI
+// --- Demo --------- -------------------------------
+#define PLAY_DEMO true
+#define COMET_DEMO
+// --- DEBUG ----------------------------------------
 #define DST_DEBUG
-#define DEBUG_PRINTER Serial
-#ifdef DST_DEBUG
-#define DEBUG_PRINT(...)              \
-  {                                   \
-    DEBUG_PRINTER.print(__VA_ARGS__); \
-  }
-#define DEBUG_PRINTLN(...)              \
-  {                                     \
-    DEBUG_PRINTER.println(__VA_ARGS__); \
-  }
-#else
-#define DEBUG_PRINT(...) \
-  {                      \
-  }
-#define DEBUG_PRINTLN(...) \
-  {                        \
-  }
-#endif
-
-//#include <ESP8266WiFi.h>
-#include <Ticker.h>
-#include "settings.h"
-
-//#include <ArduinoOTA.h>
-//#include <ESP8266mDNS.h>
-#include <time.h>
-//#include <DNSServer.h>
-//#include <ESP8266WebServer.h>
-//#include <WiFiManager.h>
-
-//#include "ThingspeakClient.h"
-
-//#define PAUSE_AFTER_GOAL
-
+//#define DEBUG_LOOP
+// --- Buttons --------------------------------------
 #define BUTTONS_ON_I2C
 #define BUTTONS_MAIN_CFG_ON_I2C
+#ifndef BUTTONS_MAIN_CFG_ON_I2C
+#define BUTTON_TEAM_1_PIN D5
+#define BUTTON_TEAM_2_PIN D6
+#define BUTTON_MAIN_PIN D7
+#define BUTTON_SETTINGS_PIN D8
+#endif
+// --- Game Control----------------------------------
+//#define PAUSE_AFTER_GOAL
+// **************************************************
+
+// **************************************************
+// *** Includes
+// **************************************************
+#include "SerialDebug.h"
+#include "I2CInclude.h"
+#include "FastLedInclude.h"
+#include "ColorPalettes.h"
+#include <Arduino.h>
+//#include <ArduinoSTL.h>
+#include <vector>
+#include <map>
+#include <string.h>
+#include "NeoGroup.cpp"
+
+#ifdef INCLUDE_WIFI
+#include <ESP8266WiFi.h>      //ESP8266 Core WiFi Library (you most likely already have this in your sketch)
+#include <DNSServer.h>        //Local DNS Server used for redirecting all requests to the configuration portal
+#include <ESP8266WebServer.h> //Local WebServer used to serve the configuration portal
+#include <WiFiManager.h>      //https://github.com/tzapu/WiFiManager WiFi Configuration Magic
+//#include <ArduinoOTA.h>
+//#include <ESP8266mDNS.h>
+#endif
+
+#include <Ticker.h>
+#include <time.h>
+// **************************************************
 
 // **************************************************
 // *** Constants Definitions
