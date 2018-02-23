@@ -64,6 +64,7 @@ class NeoGroup
 	int fxAmountGlitter;
 	uint16_t fxLength;
 	mirror fxMirror = MIRROR0;
+	bool onlyOnce = false;
 
 	//std::vector<CRGB> currentColors = {};
 	bool crossFadeColors = false;
@@ -221,10 +222,6 @@ class NeoGroup
 		{
 			if (currentColors.size() != 0)
 			{
-				DEBUG_PRINT("CfgColor: Generating color palette from ");
-				DEBUG_PRINT(currentColors.size());
-				DEBUG_PRINTLN(" CRGB colors.");
-
 				crossFadeColors = crossFade;
 				if (crossFadeColors)
 				{
@@ -273,11 +270,15 @@ class NeoGroup
 		return fxAmountGlitter;
 	}
 
-	void Start()
+	void Start(bool runOnlyOnce = false)
 	{
 		DEBUG_PRINT("GRP: Starting group '");
 		DEBUG_PRINT(GroupID);
 		DEBUG_PRINTLN("'.");
+		fxStep = 0;
+		onlyOnce = runOnlyOnce;
+		if (onlyOnce)
+			DEBUG_PRINTLN("GRP: Will run only ONCE.");
 		Active = true;
 		lastUpdate = 0;
 	}
@@ -374,6 +375,13 @@ class NeoGroup
 
 	void NextFxStep(bool invert = false)
 	{
+		if (onlyOnce && ((!invert && fxStep == 255) || (invert && fxStep == 0)))
+		{
+			DEBUG_PRINTLN("NextFxStep: Run only once, stopping.");
+			Stop();
+			return;
+		}
+
 		if (fxDirection == FORWARD)
 		{
 			fxStep++;
@@ -404,6 +412,11 @@ class NeoGroup
 				}
 			}
 		}
+		DEBUG_PRINT("GRP: Group '");
+		DEBUG_PRINT(GroupID);
+		DEBUG_PRINTLN("', next step: ");
+		DEBUG_PRINT(fxStep);
+		DEBUG_PRINTLN(".");
 	}
 
 	void ReverseFxDirection()

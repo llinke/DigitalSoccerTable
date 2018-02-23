@@ -1,6 +1,6 @@
 {
     "board": "esp8266:esp8266:d1_mini",
-    "sketch": "DigitalSoccerTable.ino"
+    "sketch": "DigitalSoccerTable.ino",
     "port": "COM8",
     "output": "../build",
     "configuration": "CpuFrequency=80,FlashSize=4M3M,LwIPVariant=v2mss536,Debug=Disabled,DebugLevel=None____,UploadSpeed=921600"
