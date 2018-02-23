@@ -17,7 +17,7 @@
 static std::vector<String> CommonColorNames;
 static std::map<String, std::vector<CRGB>> CommonColorPalettes;
 
-static uint8_t TeamHueValues[] = {HUE_RED, HUE_YELLOW}; // HUE_GREEN};
+static uint8_t TeamHueValues[] = {HUE_RED, HUE_YELLOW};
 static std::map<String, std::vector<CRGB>> TeamColorPalettes[] =
     {
         {
@@ -31,6 +31,7 @@ static std::map<String, std::vector<CRGB>> TeamColorPalettes[] =
             {"Celebration", {CRGB(CHSV(TeamHueValues[1], 255, 255)), ((((uint32_t)CRGB(CHSV(TeamHueValues[1], 255, 255))) & 0xFCFCFC) / 4)}},
         }};
 
+#pragma region Helper Methods
 void PrintHex8(uint8_t data) // prints 8-bit data in hex with leading zeroes
 {
     if (data < 0x10)
@@ -129,6 +130,7 @@ void AddColorPalette(
         CommonColorPalettes[palName] = palColorsBoosted;
     }
 }
+#pragma endregion
 
 void InitColorPalettes()
 {

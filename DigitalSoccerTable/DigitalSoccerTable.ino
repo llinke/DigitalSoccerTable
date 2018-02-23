@@ -37,10 +37,10 @@
 #include "NeoGroup.cpp"
 
 #ifdef INCLUDE_WIFI
-#include <ESP8266WiFi.h>			//ESP8266 Core WiFi Library (you most likely already have this in your sketch)
-#include <DNSServer.h>				//Local DNS Server used for redirecting all requests to the configuration portal
+#include <ESP8266WiFi.h>	  //ESP8266 Core WiFi Library (you most likely already have this in your sketch)
+#include <DNSServer.h>		  //Local DNS Server used for redirecting all requests to the configuration portal
 #include <ESP8266WebServer.h> //Local WebServer used to serve the configuration portal
-#include <WiFiManager.h>			//https://github.com/tzapu/WiFiManager WiFi Configuration Magic
+#include <WiFiManager.h>	  //https://github.com/tzapu/WiFiManager WiFi Configuration Magic
 //#include <ArduinoOTA.h>
 //#include <ESP8266mDNS.h>
 #endif
@@ -53,20 +53,20 @@
 // *** Constants Definitions
 // **************************************************
 #pragma region Constants Definitions
-const int buttonLockDuration = 200;			 // ignore buttons for X ms, prevent prelling
-const int resetGameAfter = 1000 * 2;		 // MainButton pressed for X sec resets game
+const int buttonLockDuration = 200;		 // ignore buttons for X ms, prevent prelling
+const int resetGameAfter = 1000 * 2;	 // MainButton pressed for X sec resets game
 const int lockedGoalDuration = 1000 + 2; // ignore goal buttons / sensors for X sec
-const int gameTimeAbsMax = 60 * 10;			 // max X min
-const int gameTimeAbsMin = 60 * 3;			 // min X min
-const int gameTimeDefault = 60 * 5;			 // default X min
+const int gameTimeAbsMax = 60 * 10;		 // max X min
+const int gameTimeAbsMin = 60 * 3;		 // min X min
+const int gameTimeDefault = 60 * 5;		 // default X min
 
 const uint8_t globalBrightness = 128;
 // 0: Wave, 1: Dynamic Wave, 2: Noise, 3: Confetti, 4: Fade, 5: Comet
 const int maxFxNr = 5;
-const int defaultFxNr = 2;
+const int defaultFxNr = 1;
 const int defaultFxNrAll = 5;
 const String defaultColPal = "Idle";
-const int defaultFps = 50;		//25;
+const int defaultFps = 50;	//25;
 const int defaultGlitter = 0; //32;
 #pragma endregion
 
@@ -226,7 +226,7 @@ int initStrip(bool doStart = false, bool playDemo = true)
 			CRGB color = CHSV(random8(), 255, 255);
 			nblend(leds[pos], color, 128);
 			*/
-			uint8_t colpos = ((dot * PIXEL_COUNT) / 256) + random8(8) - 4;
+			uint8_t colpos = dot + random8(16) - 8;
 			nblend(leds[pos], ColorFromPalette(colorPalette, colpos, bright), 128);
 
 			FastLED.show();
@@ -300,8 +300,8 @@ int stopStrip()
 int addGroup(String grpId, int ledFirst, int ledCount, int ledOffset)
 {
 	if ((ledFirst >= PIXEL_COUNT) ||
-			(ledCount <= 0) ||
-			(ledFirst + ledCount) > PIXEL_COUNT)
+		(ledCount <= 0) ||
+		(ledFirst + ledCount) > PIXEL_COUNT)
 		return -((((3 * 1000) + ledFirst) * 1000) + ledCount); // Invalid parameter
 
 	DEBUG_PRINT("Adding group '");
@@ -351,14 +351,14 @@ int stopGroup(int grpNr, bool stopNow = false)
 }
 
 int setGrpEffect(
-		int grpNr,
-		pattern pattern,
-		uint16_t length = 0,
-		int amountglitter = -1,
-		uint8_t fps = 0,
-		direction direction = FORWARD,
-		mirror mirror = MIRROR0,
-		wave wave = LINEAR)
+	int grpNr,
+	pattern pattern,
+	uint16_t length = 0,
+	int amountglitter = -1,
+	uint8_t fps = 0,
+	direction direction = FORWARD,
+	mirror mirror = MIRROR0,
+	wave wave = LINEAR)
 {
 	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
 	neoGroup->Stop();
@@ -377,11 +377,11 @@ int setGrpEffect(
 }
 
 int setGrpColors(
-		int grpNr,
-		std::vector<CRGB> colors,
-		bool clearFirst = true,
-		bool generatePalette = true,
-		bool crossFade = false)
+	int grpNr,
+	std::vector<CRGB> colors,
+	bool clearFirst = true,
+	bool generatePalette = true,
+	bool crossFade = false)
 {
 	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
 	//neoGroup->Stop();
@@ -427,7 +427,7 @@ void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce)
 		fxPatternName = "Noise";
 		fxPattern = pattern::NOISE;
 		fxMirror = mirror::MIRROR1; // mirror::MIRROR0;
-		fxFps *= 2;									// double FPS looks better
+		fxFps *= 2;					// double FPS looks better
 		break;
 	case 3: // confetti
 		fxPatternName = "Confetti";
@@ -445,7 +445,7 @@ void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce)
 		fxPattern = pattern::COMET;
 		//fxWave = wave::EASE;
 		fxWave = wave::SINUS;
-		fxFps *= 1.5;								// faster FPS looks better
+		fxFps *= 1.5;				// faster FPS looks better
 		fxMirror = mirror::MIRROR0; //mirror::MIRROR2;
 		break;
 	default:
@@ -458,14 +458,14 @@ void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce)
 	DEBUG_PRINT(fxPatternName);
 	DEBUG_PRINTLN("'");
 	setGrpEffect(
-			grpNr,
-			fxPattern,
-			fxLength,
-			fxGlitter,
-			fxFps,
-			direction::FORWARD,
-			fxMirror,
-			fxWave);
+		grpNr,
+		fxPattern,
+		fxLength,
+		fxGlitter,
+		fxFps,
+		direction::FORWARD,
+		fxMirror,
+		fxWave);
 	if (startFx)
 		startGroup(grpNr, onlyOnce);
 }
@@ -922,17 +922,17 @@ void setup()
 	DEBUG_PRINTLN("PCF8574: attaching goal triggers.");
 	/* Attach a software interrupt on pin 3 of the PCF8574 */
 	expander.attachInterrupt(0, onGoalButtonTeam1, FALLING); // Manual button is pulling DOWN
-	expander.attachInterrupt(1, onGoalSensorTeam1, RISING);	// IR _reflection_ trigger pulls UP
-	expander.attachInterrupt(2, onGoalSensorTeam1, RISING);	// IR v trigger pulls UP
+	expander.attachInterrupt(1, onGoalSensorTeam1, RISING);  // IR _reflection_ trigger pulls UP
+	expander.attachInterrupt(2, onGoalSensorTeam1, RISING);  // IR v trigger pulls UP
 	//expander.attachInterrupt(2, onGoalSensorTeam1, FALLING); // IR _interruption_ trigger pulls DOWN
 	expander.attachInterrupt(3, onGoalButtonTeam2, FALLING); // Manual button is pulling DOWN
-	expander.attachInterrupt(4, onGoalSensorTeam2, RISING);	// IR _reflection_ trigger pulls UP
-	expander.attachInterrupt(5, onGoalSensorTeam2, RISING);	// IR _reflection_ trigger pulls UP
-																													 //expander.attachInterrupt(5, onGoalSensorTeam2, FALLING); // IR _interruption_ trigger pulls DOWN
+	expander.attachInterrupt(4, onGoalSensorTeam2, RISING);  // IR _reflection_ trigger pulls UP
+	expander.attachInterrupt(5, onGoalSensorTeam2, RISING);  // IR _reflection_ trigger pulls UP
+															 //expander.attachInterrupt(5, onGoalSensorTeam2, FALLING); // IR _interruption_ trigger pulls DOWN
 
 #ifdef BUTTONS_MAIN_CFG_ON_I2C
 	DEBUG_PRINTLN("PCF8574: attaching main/cfg buttons.");
-	expander.attachInterrupt(6, onMainButton, CHANGE);		 // Main button; must be able to handle long press to reset
+	expander.attachInterrupt(6, onMainButton, CHANGE);	 // Main button; must be able to handle long press to reset
 	expander.attachInterrupt(7, onSettingsButton, RISING); // Settings button; safer to handle when released
 #endif
 
@@ -1023,7 +1023,7 @@ void loop()
 		updateGoalStats();
 	}
 	if (lockedGoalTriggers &&
-			((millis() - lockedGoalTriggersAt) > lockedGoalDuration))
+		((millis() - lockedGoalTriggersAt) > lockedGoalDuration))
 	{
 		// Release lock after X ms
 		lockedGoalTriggers = false;

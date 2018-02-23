@@ -13,6 +13,7 @@
 #define CROSSFADE_PALETTES false
 #define CROSSFADE_MAX_CHANGE_PER_STEP 16
 
+#pragma region Enums
 enum pattern
 {
 	NOFX,
@@ -48,10 +49,13 @@ enum mirror
 	MIRROR1,
 	MIRROR2
 };
+#pragma endregion
 
 class NeoGroup
 {
+#ifndef PIXEL_USE_OFFSET
 	CRGB *LedFirst;
+#endif
 	int LedOffset = 0;
 
 	uint8_t fxFps;
@@ -81,19 +85,24 @@ class NeoGroup
 	int LedCount;
 	bool Active;
 
+#pragma region Constructor
 	NeoGroup(String groupID, int ledFirst, int ledCount, int ledOffset = 0)
 	{
 		GroupID = groupID;
 		Active = false;
 		fxStep = 0;
 		LedFirstNr = ledFirst;
+#ifndef PIXEL_USE_OFFSET
 		LedFirst = &leds[ledFirst];
+#endif
 		LedCount = ledCount;
 		LedOffset = ledOffset;
 		totalFxSteps = LedCount;
 		colorPalette = GenerateRGBPalette({0x000000, 0x000000});
 	}
+#pragma endregion
 
+#pragma region NeoGroup functions
 	CRGB GetColorFromPaletteAt(uint8_t idx, uint8_t brightness = 255)
 	{
 		return ColorFromPalette(colorPalette, idx, brightness);
@@ -179,7 +188,11 @@ class NeoGroup
 			DEBUG_PRINT("CfgFX: Setting FX 'Fire' for group '");
 			DEBUG_PRINT(GroupID);
 			DEBUG_PRINTLN("'.");
+#ifdef PIXEL_USE_OFFSET
+			FillPixels(0, LedCount, 0x000000);
+#else
 			fill_solid(LedFirst, LedCount, 0x000000);
+#endif
 			effectFunc = &NeoGroup::FxFire;
 			fxAmountGlitter = 0;
 		}
@@ -188,7 +201,11 @@ class NeoGroup
 			DEBUG_PRINT("CfgFX: Setting FX 'Comet' for group '");
 			DEBUG_PRINT(GroupID);
 			DEBUG_PRINTLN("'.");
+#ifdef PIXEL_USE_OFFSET
+			FillPixels(0, LedCount, 0x000000);
+#else
 			fill_solid(LedFirst, LedCount, 0x000000);
+#endif
 			effectFunc = &NeoGroup::FxComet;
 			fxAmountGlitter = 0;
 		}
@@ -292,7 +309,11 @@ class NeoGroup
 		fxFadeOut = (stopNow) ? 0 : FADEOUT_STEPS;
 		if (stopNow)
 		{
+#ifdef PIXEL_USE_OFFSET
+			FillPixels(0, LedCount, 0x000000);
+#else
 			fill_solid(LedFirst, LedCount, 0x000000);
+#endif
 		}
 	}
 
@@ -310,11 +331,19 @@ class NeoGroup
 				DEBUG_PRINTLN(" steps remaing.");
 				*/
 				lastUpdate = millis();
+#ifdef PIXEL_USE_OFFSET
+				fadeToBlackBy(&leds[LedFirstNr], LedCount, (1024 / FADEOUT_STEPS));
+#else
 				fadeToBlackBy(LedFirst, LedCount, (1024 / FADEOUT_STEPS));
+#endif
 				fxFadeOut--;
 				if (fxFadeOut == 0)
 				{
+#ifdef PIXEL_USE_OFFSET
+					FillPixels(0, LedCount, 0x000000);
+#else
 					fill_solid(LedFirst, LedCount, 0x000000);
+#endif
 					if (crossFadeColors)
 					{
 						colorPalette = GenerateRGBPalette({0x000000, 0x000000});
@@ -432,7 +461,9 @@ class NeoGroup
 			fxStep = 0;
 		}
 	}
+#pragma endregion
 
+#pragma region SetPixel functions
 	void FillPixels(int pos, int count, CRGB newcolor, mirror mirror = MIRROR0, bool blend = false)
 	{
 		for (int p = pos; p < count; p++)
@@ -441,63 +472,76 @@ class NeoGroup
 
 	void SetPixel(int pos, CRGB newcolor, mirror mirror = MIRROR0, bool blend = false)
 	{
+		int ledNormalNr = -1;
+		int ledMirrorNr = -1;
+
 		if (mirror == MIRROR1) // set even/odd as mirror values
 		{
 			int newPos = pos / 2;
-			if ((pos % 2) == 0)
-			{
-				if (blend)
-					nblend(LedFirst[CapLedPosition(newPos + LedOffset)], newcolor, 128);
-				else
-					LedFirst[CapLedPosition(newPos + LedOffset)] = newcolor;
-			}
-			else
-			{
-				int mirrorPos = LedCount - newPos - 1;
-				if (blend)
-					nblend(LedFirst[CapLedPosition(mirrorPos + LedOffset)], newcolor, 128);
-				else
-					LedFirst[CapLedPosition(mirrorPos + LedOffset)] = newcolor;
-			}
-			return;
+			ledNormalNr = ((pos % 2) != 0)
+							  ? CapLedPosition(newPos + LedOffset, LedCount)
+							  : CapLedPosition((LedCount - newPos - 1) + LedOffset, LedCount);
 		}
-
-		if (mirror == MIRROR2) // mirror each second value
+		else if (mirror == MIRROR2) // mirror each second value
 		{
 			int newPos = pos / 2;
-			if (blend)
-				nblend(LedFirst[CapLedPosition(newPos + LedOffset)], newcolor, 128);
-			else
-				LedFirst[CapLedPosition(newPos + LedOffset)] = newcolor;
 			int mirrorPos = LedCount - newPos - 1;
-			if (blend)
-				nblend(LedFirst[CapLedPosition(mirrorPos + LedOffset)], newcolor, 128);
-			else
-				LedFirst[CapLedPosition(mirrorPos + LedOffset)] = newcolor;
-			return;
+			ledNormalNr = CapLedPosition(newPos + LedOffset, LedCount);
+			ledMirrorNr = CapLedPosition(mirrorPos + LedOffset, LedCount);
+		}
+		else
+		{
+			ledNormalNr = pos + LedOffset;
 		}
 
-		// else
+#ifdef PIXEL_USE_OFFSET
+		CRGB *LedTargetNormal =
+			(ledNormalNr >= 0) ? &leds[CapLedPosition(LedFirstNr + ledNormalNr + PIXEL_OFFSET, PIXEL_COUNT)] : nullptr;
+		CRGB *LedTargetMirror =
+			(ledMirrorNr >= 0) ? &leds[CapLedPosition(LedFirstNr + ledMirrorNr + PIXEL_OFFSET, PIXEL_COUNT)] : nullptr;
+#else
+		CRGB *LedTargetNormal =
+			(ledNormalNr >= 0) ? &LedFirst[ledNormalNr] : nullptr;
+		CRGB *LedTargetMirror =
+			(ledMirrorNr >= 0) ? &LedFirst[ledMirrorNr] : nullptr;
+#endif
+
 		if (blend)
-			nblend(LedFirst[CapLedPosition(pos + LedOffset)], newcolor, 128);
+		{
+			if (ledNormalNr >= 0)
+				nblend(LedTargetNormal[0], newcolor, 128);
+			if (ledMirrorNr >= 0)
+				nblend(LedTargetMirror[0], newcolor, 128);
+		}
 		else
-			LedFirst[CapLedPosition(pos + LedOffset)] = newcolor;
+		{
+			if (ledNormalNr >= 0)
+				LedTargetNormal[0] = newcolor;
+			if (ledMirrorNr >= 0)
+				LedTargetMirror[0] = newcolor;
+		}
 	}
 
-	int CapLedPosition(int pos)
+	int CapLedPosition(int ledPos, int ledCount)
 	{
-		int newPos = pos;
-		while (newPos >= LedCount)
-			newPos -= LedCount;
+		int newPos = ledPos;
+		while (newPos >= ledCount)
+			newPos -= ledCount;
 		while (newPos < 0)
-			newPos += LedCount;
+			newPos += ledCount;
 		return newPos;
 	}
+#pragma endregion
 
+#pragma region Effects
 	void FxStatic()
 	{
 		CRGB newColor = ColorFromPalette(colorPalette, 0);
+#ifdef PIXEL_USE_OFFSET
+		FillPixels(0, LedCount, newColor);
+#else
 		fill_solid(LedFirst, LedCount, newColor);
+#endif
 		for (int i = 0; i < LedCount; i++)
 		{
 			SetPixel((LedCount - 1) - i, newColor);
@@ -559,24 +603,33 @@ class NeoGroup
 	{
 		if (random8() < chanceOfGlitter)
 		{
+#ifdef PIXEL_USE_OFFSET
+			SetPixel(random16(LedCount), CRGB::White, MIRROR0, true);
+#else
 			LedFirst[random16(LedCount)] += CRGB::White;
-			//SetPixel(random16(LedCount), CRGB::White, MIRROR0, true);
+#endif
 		}
 	}
 
 	void FxConfetti()
 	{
+#ifdef PIXEL_USE_OFFSET
+		fadeToBlackBy(&leds[LedFirstNr], LedCount, 16);
+#else
 		fadeToBlackBy(LedFirst, LedCount, 16);
+#endif
 		int pos = random16(LedCount);
-		//LedFirst[pos] += ColorFromPalette(colorPalette, fxStep + random8(64));
-		//SetPixel(pos, ColorFromPalette(colorPalette, fxStep + random8(64)), MIRROR0, true);
-		SetPixel(pos, ColorFromPalette(colorPalette, fxStep + random8(64)), MIRROR0, false);
+		SetPixel(pos, ColorFromPalette(colorPalette, fxStep + random8(64)), MIRROR0, false); //true);
 		NextFxStep();
 	}
 
 	void FxComet()
 	{
+#ifdef PIXEL_USE_OFFSET
+		fadeToBlackBy(&leds[LedFirstNr], LedCount, 16);
+#else
 		fadeToBlackBy(LedFirst, LedCount, 16);
+#endif
 		int pos = fxStep;
 		int variant = LedCount < 64 ? (LedCount / 4) : (LedCount / 8);
 		switch (fxWave)
@@ -729,7 +782,9 @@ class NeoGroup
 			SetPixel(pixelnumber, newcolor, fxMirror);
 		}
 	}
+#pragma endregion
 
+#pragma region Static ColorPalette functions
 	static CRGBPalette16 GenerateRGBPalette(std::vector<CRGB> colors)
 	{
 		CRGB nc[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -848,4 +903,5 @@ class NeoGroup
 
 		return CRGB(red1, green1, blue1);
 	}
+#pragma endregion
 };
