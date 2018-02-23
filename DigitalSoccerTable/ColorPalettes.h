@@ -21,15 +21,25 @@ static uint8_t TeamHueValues[] = {HUE_RED, HUE_YELLOW};
 static std::map<String, std::vector<CRGB>> TeamColorPalettes[] =
     {
         {
-            {"Idle", {CRGB::Black, CRGB(CHSV(TeamHueValues[0], 255, 255)), CRGB::Gray, CRGB(CHSV(TeamHueValues[0], 255, 255))}},
-            {"Goal", {CRGB::Black, CRGB::White, CRGB(CHSV(TeamHueValues[0], 255, 255))}},
-            {"Celebration", {CRGB(CHSV(TeamHueValues[0], 255, 255)), ((((uint32_t)CRGB(CHSV(TeamHueValues[0], 255, 255))) & 0xFCFCFC) / 4)}},
+            {"Idle", {}},
+            {"Goal", {}},
+            {"Celebration", {}},
         },
         {
-            {"Idle", {CRGB::Black, CRGB(CHSV(TeamHueValues[1], 255, 255)), CRGB::Gray, CRGB(CHSV(TeamHueValues[1], 255, 255))}},
-            {"Goal", {CRGB::Black, CRGB::White, CRGB(CHSV(TeamHueValues[1], 255, 255))}},
-            {"Celebration", {CRGB(CHSV(TeamHueValues[1], 255, 255)), ((((uint32_t)CRGB(CHSV(TeamHueValues[1], 255, 255))) & 0xFCFCFC) / 4)}},
+            {"Idle", {}},
+            {"Goal", {}},
+            {"Celebration", {}},
         }};
+static void CreateTeamColorPalettes(int teamNr)
+{
+    DEBUG_PRINTLN("Initializing team " + String(teamNr + 1) + "'s color palettes...");
+    TeamColorPalettes[teamNr]["Idle"] =
+        {CRGB::Black, CRGB(CHSV(TeamHueValues[teamNr], 255, 255)), CRGB::Gray, CRGB(CHSV(TeamHueValues[0], 255, 255))};
+    TeamColorPalettes[teamNr]["Goal"] =
+        {CRGB::Black, CRGB::White, CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
+    TeamColorPalettes[teamNr]["Celebration"] =
+        {CRGB(CHSV(TeamHueValues[teamNr], 255, 255)), ((((uint32_t)CRGB(CHSV(TeamHueValues[teamNr], 255, 255))) & 0xFCFCFC) / 4)};
+}
 
 #pragma region Helper Methods
 void PrintHex8(uint8_t data) // prints 8-bit data in hex with leading zeroes
@@ -134,8 +144,10 @@ void AddColorPalette(
 
 void InitColorPalettes()
 {
-    DEBUG_PRINTLN("Initializing color palettes...");
+    DEBUG_PRINTLN("Initializing common color palettes...");
     AddColorPalette("Rainbow", {CRGB(0xFF0000), CRGB(0xD52A00), CRGB(0xAB5500), CRGB(0xAB7F00), CRGB(0xABAB00), CRGB(0x56D500), CRGB(0x00FF00), CRGB(0x00D52A), CRGB(0x00AB55), CRGB(0x0056AA), CRGB(0x0000FF), CRGB(0x2A00D5), CRGB(0x5500AB), CRGB(0x7F0081), CRGB(0xAB0055), CRGB(0xD5002B)}, false);
     //AddColorPalette("Idle", {CRGB::Black, CRGB::Gray, CRGB(CHSV(TeamHueValues[0], 255, 255)), CRGB::Gray, CRGB(CHSV(TeamHueValues[1], 255, 255)), CRGB::Gray}, false);
-    AddColorPalette("Idle", {CRGB::Black, CRGB::Gray, CRGB(CHSV(TeamHueValues[0], 255, 255)), CRGB::Gray, CRGB(CHSV(TeamHueValues[1], 255, 255)), CRGB::Gray}, false);
+
+    CreateTeamColorPalettes(0);
+    CreateTeamColorPalettes(1);
 }

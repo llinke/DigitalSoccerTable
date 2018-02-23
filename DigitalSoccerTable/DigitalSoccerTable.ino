@@ -11,6 +11,7 @@
 //#define DEBUG_LOOP
 // --- Buttons --------------------------------------
 #define BUTTONS_ON_I2C
+#define SENSORS_ON_I2C
 #define BUTTONS_MAIN_CFG_ON_I2C
 #ifndef BUTTONS_MAIN_CFG_ON_I2C
 #define BUTTON_TEAM_1_PIN D5
@@ -66,6 +67,7 @@ const int maxFxNr = 5;
 const int defaultFxNr = 1;
 const int defaultFxNrAll = 5;
 const String defaultColPal = "Idle";
+const String defaultColPalAll = "Rainbow";
 const int defaultFps = 50;	//25;
 const int defaultGlitter = 0; //32;
 #pragma endregion
@@ -483,28 +485,25 @@ void SetColors(int grpNr, String palKey)
 	DEBUG_PRINT(" for group #");
 	DEBUG_PRINTLN(grpNr);
 
+	DEBUG_PRINT("Col: Changing color palette to '");
+	DEBUG_PRINT(palKey);
+	DEBUG_PRINT("' ");
+	std::vector<CRGB> colors = {};
 	if (grpNr == 0)
 	{
-		DEBUG_PRINT("Col: Changing color palette to '");
-		DEBUG_PRINT(palKey);
-		DEBUG_PRINTLN("'");
+		DEBUG_PRINTLN("of CommonColorPalettes.");
 		if (CommonColorPalettes.find(palKey) != CommonColorPalettes.end())
-		{
-			std::vector<CRGB> colors = CommonColorPalettes.find(palKey)->second;
-			setGrpColors(grpNr, colors, true, true, CROSSFADE_PALETTES);
-		}
+			colors = CommonColorPalettes.find(palKey)->second;
 	}
 	else
 	{
-		DEBUG_PRINT("Col: Changing color palette to '");
-		DEBUG_PRINT(palKey);
-		DEBUG_PRINTLN("'");
+		DEBUG_PRINTLN("of TeamColorPalettes.");
 		if (TeamColorPalettes[grpNr - 1].find(palKey) != TeamColorPalettes[grpNr - 1].end())
-		{
-			std::vector<CRGB> colors = TeamColorPalettes[grpNr - 1].find(palKey)->second;
-			setGrpColors(grpNr, colors, true, true, CROSSFADE_PALETTES);
-		}
+			colors = TeamColorPalettes[grpNr - 1].find(palKey)->second;
 	}
+	setGrpColors(grpNr, colors, true, true, CROSSFADE_PALETTES);
+	DEBUG_PRINTLN("Dumping palette's colors...");
+	DumpPalette(colors);
 }
 #pragma endregion
 
@@ -775,10 +774,10 @@ void onMainButton()
 
 		uint32_t pressedFor = millis() - mainButtonAt;
 		/*
-    DEBUG_PRINT("Button MAIN released, pressed for ");
-    DEBUG_PRINT(pressedFor);
-    DEBUG_PRINTLN("ms.");
-    */
+		DEBUG_PRINT("Button MAIN released, pressed for ");
+		DEBUG_PRINT(pressedFor);
+		DEBUG_PRINTLN("ms.");
+		*/
 		if (pressedFor < buttonLockDuration)
 		{
 			//DEBUG_PRINTLN("IGNORED!");
@@ -922,13 +921,15 @@ void setup()
 	DEBUG_PRINTLN("PCF8574: attaching goal triggers.");
 	/* Attach a software interrupt on pin 3 of the PCF8574 */
 	expander.attachInterrupt(0, onGoalButtonTeam1, FALLING); // Manual button is pulling DOWN
-	expander.attachInterrupt(1, onGoalSensorTeam1, RISING);  // IR _reflection_ trigger pulls UP
-	expander.attachInterrupt(2, onGoalSensorTeam1, RISING);  // IR v trigger pulls UP
-	//expander.attachInterrupt(2, onGoalSensorTeam1, FALLING); // IR _interruption_ trigger pulls DOWN
 	expander.attachInterrupt(3, onGoalButtonTeam2, FALLING); // Manual button is pulling DOWN
-	expander.attachInterrupt(4, onGoalSensorTeam2, RISING);  // IR _reflection_ trigger pulls UP
-	expander.attachInterrupt(5, onGoalSensorTeam2, RISING);  // IR _reflection_ trigger pulls UP
-															 //expander.attachInterrupt(5, onGoalSensorTeam2, FALLING); // IR _interruption_ trigger pulls DOWN
+#ifdef SENSORS_ON_I2C
+	expander.attachInterrupt(1, onGoalSensorTeam1, RISING); // IR _reflection_ trigger pulls UP
+	expander.attachInterrupt(2, onGoalSensorTeam1, RISING); // IR _reflection_ trigger pulls UP
+															//expander.attachInterrupt(2, onGoalSensorTeam1, FALLING); // IR _interruption_ trigger pulls DOWN
+	expander.attachInterrupt(4, onGoalSensorTeam2, RISING); // IR _reflection_ trigger pulls UP
+	expander.attachInterrupt(5, onGoalSensorTeam2, RISING); // IR _reflection_ trigger pulls UP
+															//expander.attachInterrupt(5, onGoalSensorTeam2, FALLING); // IR _interruption_ trigger pulls DOWN
+#endif
 
 #ifdef BUTTONS_MAIN_CFG_ON_I2C
 	DEBUG_PRINTLN("PCF8574: attaching main/cfg buttons.");
@@ -975,7 +976,7 @@ void setup()
 #ifdef DO_NOT_START_FX_ON_INIT
 		startFx = false;
 #endif
-		SetColors(grpNr, defaultColPal);
+		SetColors(grpNr, grpNr == 0 ? defaultColPalAll : defaultColPal);
 		SetEffect(grpNr, grpNr == 0 ? defaultFxNrAll : defaultFxNr, startFx, grpNr == 0);
 	}
 
@@ -1043,14 +1044,17 @@ void loop()
 	{
 		if (changeColorForTeam >= 0)
 		{
-			DEBUG_PRINT("Changing color of team #");
-			DEBUG_PRINT(changeColorForTeam);
-			DEBUG_PRINT(" to ");
-			TeamHueValues[changeColorForTeam] += 32;
-			DEBUG_PRINT(TeamHueValues[changeColorForTeam]);
-			DEBUG_PRINTLN(".");
-			SetColors(changeColorForTeam + 1, "Idle");
+			int teamNr = changeColorForTeam;
 			changeColorForTeam = -1;
+			DEBUG_PRINT("Changing color of team #");
+			DEBUG_PRINT(teamNr + 1);
+			DEBUG_PRINT(" to ");
+			TeamHueValues[teamNr] += 32;
+			//DEBUG_PRINT(TeamHueValues[teamNr]);
+			PrintHex8(TeamHueValues[teamNr]);
+			DEBUG_PRINTLN(".");
+			CreateTeamColorPalettes(teamNr);
+			SetColors(teamNr + 1, "Idle");
 		}
 
 		bool isActiveMainGrp = (&(neoGroups.at(0)))->Active;
