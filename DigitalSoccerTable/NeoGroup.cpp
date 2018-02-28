@@ -18,6 +18,7 @@ enum pattern
 {
 	NOFX,
 	STATIC,
+	FILL,
 	FADE,
 	WAVE,
 	DYNAMICWAVE,
@@ -32,15 +33,17 @@ enum wave
 {
 	LINEAR,
 	SINUS,
-	EASE
+	/*
+	EASEIN,
+	EASEOUT,
+	*/
+	EASEINOUT
 };
 
 enum direction
 {
 	FORWARD,
-	REVERSE,
-	//	OUTWARD,
-	//	IN0WARD
+	REVERSE
 };
 
 enum mirror
@@ -60,13 +63,12 @@ class NeoGroup
 
 	uint8_t fxFps;
 	unsigned long lastUpdate;
-	uint16_t fxStep;
-	uint16_t totalFxSteps;
+	int fxStep;
 	direction fxDirection;
 	wave fxWave;
 	int fxFadeOut = 0;
 	int fxAmountGlitter;
-	uint16_t fxLength;
+	uint8_t fxLength;
 	mirror fxMirror = MIRROR0;
 	bool onlyOnce = false;
 
@@ -97,7 +99,6 @@ class NeoGroup
 #endif
 		LedCount = ledCount;
 		LedOffset = ledOffset;
-		totalFxSteps = LedCount;
 		colorPalette = GenerateRGBPalette({0x000000, 0x000000});
 	}
 #pragma endregion
@@ -110,7 +111,6 @@ class NeoGroup
 
 	uint16_t ConfigureEffect(
 		pattern pattern,
-		uint16_t length = 0,
 		int amountglitter = 0,
 		uint8_t fps = 50,
 		direction direction = FORWARD,
@@ -122,13 +122,12 @@ class NeoGroup
 
 		DEBUG_PRINTLN("CfgFX: Configuring effect parameters.");
 		ChangeFps(fps);
-		fxStep = 0;
 		fxDirection = direction;
+		fxStep = (fxDirection == REVERSE) ? 255 : 0;
 		fxWave = wave;
 		ChangeGlitter(amountglitter);
 		fxMirror = mirror;
-		fxLength = 256;
-		totalFxSteps = 256;
+		fxLength = 255;
 
 		if (pattern == STATIC)
 		{
@@ -136,7 +135,13 @@ class NeoGroup
 			DEBUG_PRINT(GroupID);
 			DEBUG_PRINTLN("'.");
 			effectFunc = &NeoGroup::FxStatic;
-			totalFxSteps = 1;
+		}
+		if (pattern == FILL)
+		{
+			DEBUG_PRINT("CfgFX: Setting FX 'Fill' for group '");
+			DEBUG_PRINT(GroupID);
+			DEBUG_PRINTLN("'.");
+			effectFunc = &NeoGroup::FxFill;
 		}
 		if (pattern == FADE)
 		{
@@ -151,7 +156,7 @@ class NeoGroup
 			DEBUG_PRINT(GroupID);
 			DEBUG_PRINTLN("'.");
 			effectFunc = &NeoGroup::FxWave;
-			fxLength = (length == 0 ? (LedCount * 2) : length);
+			fxLength = constrain((LedCount * 1.5), 0, 255);
 		}
 		if (pattern == DYNAMICWAVE)
 		{
@@ -173,7 +178,7 @@ class NeoGroup
 			DEBUG_PRINT(GroupID);
 			DEBUG_PRINTLN("'.");
 			effectFunc = &NeoGroup::FxRainbow;
-			fxLength = (length == 0 ? (LedCount * 2) : length);
+			fxLength = constrain((LedCount * 2), 0, 255);
 		}
 		if (pattern == CONFETTI)
 		{
@@ -209,7 +214,7 @@ class NeoGroup
 			effectFunc = &NeoGroup::FxComet;
 			fxAmountGlitter = 0;
 		}
-		return totalFxSteps;
+		return 0;
 	}
 
 	uint16_t ConfigureColors(
@@ -414,7 +419,7 @@ class NeoGroup
 		if (fxDirection == FORWARD)
 		{
 			fxStep++;
-			if (fxStep >= totalFxSteps)
+			if (fxStep > 255)
 			{
 				if (invert)
 				{
@@ -428,7 +433,7 @@ class NeoGroup
 		}
 		else // fxDirection == REVERSE
 		{
-			--fxStep;
+			fxStep--;
 			if (fxStep < 0)
 			{
 				if (invert)
@@ -437,15 +442,11 @@ class NeoGroup
 				}
 				else
 				{
-					fxStep = totalFxSteps - 1;
+					fxStep = 255;
 				}
 			}
 		}
-		DEBUG_PRINT("GRP: Group '");
-		DEBUG_PRINT(GroupID);
-		DEBUG_PRINTLN("', next step: ");
-		DEBUG_PRINT(fxStep);
-		DEBUG_PRINTLN(".");
+		//DEBUG_PRINTLN("GRP: Group '" + String(GroupID) + "', next step: " + String(fxStep) + ".");
 	}
 
 	void ReverseFxDirection()
@@ -453,7 +454,7 @@ class NeoGroup
 		if (fxDirection == FORWARD)
 		{
 			fxDirection = REVERSE;
-			fxStep = totalFxSteps - 1;
+			fxStep = 255;
 		}
 		else
 		{
@@ -466,7 +467,7 @@ class NeoGroup
 #pragma region SetPixel functions
 	void FillPixels(int pos, int count, CRGB newcolor, mirror mirror = MIRROR0, bool blend = false)
 	{
-		for (int p = pos; p < count; p++)
+		for (int p = pos; p < (pos + count); p++)
 			SetPixel(p, newcolor, mirror, blend);
 	}
 
@@ -531,6 +532,37 @@ class NeoGroup
 			newPos += ledCount;
 		return newPos;
 	}
+
+	uint8_t GetEasedFxStep(uint8_t step)
+	{
+		int newStep = step;
+		switch (fxWave)
+		{
+		case SINUS:
+			newStep = quadwave8(step);
+			break;
+			/*
+		case EASEIN:
+			//newStep = ease8InOutQuad(step / 2 + step % 2) * 2 + step % 2;
+			newStep = (ease8InOutQuad(step >> 1) << 1) | (step & 0x01);
+			break;
+		case EASEOUT:
+			//newStep = (ease8InOutQuad(128 + (step / 2 + step % 2)) - 128) * 2 + step % 2;
+			newStep = (constrain(ease8InOutQuad(0x80 | (step >> 1)), 0, 0x7f)) | (step & 0x01);
+			break;
+		case EASEINOUT:
+*/
+		case EASEINOUT:
+			newStep = ease8InOutQuad(step);
+			break;
+		default:
+			newStep = fxStep;
+			break;
+		}
+		//if (GroupID == "Team 2 group")
+		//	DEBUG_PRINTLN(String(GroupID) + ": GetEasedFxStep >> " + String(step) + " to " + String(newStep));
+		return newStep;
+	}
 #pragma endregion
 
 #pragma region Effects
@@ -553,9 +585,37 @@ class NeoGroup
 	{
 		CRGB newColor = ColorFromPalette(colorPalette, fxStep);
 		//fill_solid(LedFirst, LedCount, newColor);
-		for (int i = 0; i < LedCount; i++)
+		FillPixels(0, LedCount, newColor);
+
+		NextFxStep();
+	}
+
+	void FxFill()
+	{
+#ifdef PIXEL_USE_OFFSET
+		fadeToBlackBy(&leds[LedFirstNr], LedCount, 16);
+#else
+		fadeToBlackBy(LedFirst, LedCount, 16);
+#endif
+		CRGB newColor = (fxDirection == REVERSE)
+							? ColorFromPalette(colorPalette, 255 - fxStep)
+							: ColorFromPalette(colorPalette, fxStep);
+		//int variant = LedCount < 64 ? (LedCount / 4) : (LedCount / 8);
+		if (fxDirection == REVERSE)
 		{
-			SetPixel((LedCount - 1) - i, newColor);
+			uint8_t pos = GetEasedFxStep(255 - fxStep); // + random(0 - variant, 0 + variant);
+			int ledAmount = scale8(LedCount, pos);
+			int ledPos = LedCount - ledAmount;
+			if (ledAmount > 0)
+				FillPixels(ledPos, ledAmount, newColor, fxMirror, true);
+		}
+		else
+		{
+			uint8_t pos = GetEasedFxStep(fxStep); // + random(0 - variant, 0 + variant);
+			int ledAmount = scale8(LedCount, pos);
+			int ledPos = 0;
+			if (ledAmount > 0)
+				FillPixels(ledPos, ledAmount, newColor, fxMirror, true);
 		}
 
 		NextFxStep();
@@ -632,19 +692,8 @@ class NeoGroup
 #endif
 		int pos = fxStep;
 		int variant = LedCount < 64 ? (LedCount / 4) : (LedCount / 8);
-		switch (fxWave)
-		{
-		case SINUS:
-			pos = quadwave8(fxStep) + random(0 - variant, 0 + variant);
-			break;
-		case EASE:
-			pos = ease8InOutQuad(fxStep) + random(0 - variant, 0 + variant);
-			break;
-		default:
-			pos = fxStep;
-			break;
-		}
-		pos = (pos * LedCount) / 256;
+		pos = GetEasedFxStep(fxStep) + random(0 - variant, 0 + variant);
+		pos = lerp8by8(0, LedCount, pos); //(pos * LedCount) / 255;
 		pos = constrain(pos, 0, LedCount);
 		int bright = random(64, 255);
 		uint8_t colpos = (fxStep * 1.5) + random8(16);

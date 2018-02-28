@@ -62,9 +62,9 @@ const int gameTimeAbsMin = 60 * 3;		 // min X min
 const int gameTimeDefault = 60 * 5;		 // default X min
 
 const uint8_t globalBrightness = 128;
-// 0: Wave, 1: Dynamic Wave, 2: Noise, 3: Confetti, 4: Fade, 5: Comet
+// 0: Wave, 1: Dynamic Wave, 2: Noise, 3: Confetti, 4: Fade, 5: Comet, 6: Fill
 const int maxFxNr = 5;
-const int defaultFxNr = 1;
+const int defaultFxNr = 1; //6;
 const int defaultFxNrAll = 5;
 const String defaultColPal = "Idle";
 const String defaultColPalAll = "Rainbow";
@@ -355,7 +355,6 @@ int stopGroup(int grpNr, bool stopNow = false)
 int setGrpEffect(
 	int grpNr,
 	pattern pattern,
-	uint16_t length = 0,
 	int amountglitter = -1,
 	uint8_t fps = 0,
 	direction direction = FORWARD,
@@ -370,7 +369,7 @@ int setGrpEffect(
 	//uint8_t fxFps = fps <= 0 ? neoGroup->GetFps() : fps;
 	uint8_t fxFps = fps <= 0 ? defaultFps : fps;
 
-	uint16_t result = neoGroup->ConfigureEffect(pattern, length, fxGlitter, fxFps, direction, mirror, wave);
+	uint16_t result = neoGroup->ConfigureEffect(pattern, fxGlitter, fxFps, direction, mirror, wave);
 	//neoGroup->Start();
 
 	updateOledRequired = true;
@@ -395,7 +394,7 @@ int setGrpColors(
 	return result;
 }
 
-void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce)
+void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce, direction fxDirection = direction::FORWARD)
 {
 	DEBUG_PRINTLN("SetEffect ---------------------------------------------------");
 	DEBUG_PRINT("Fx: Configuring LED effect #");
@@ -405,7 +404,6 @@ void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce)
 
 	String fxPatternName = "";
 	pattern fxPattern = pattern::STATIC;
-	uint16_t fxLength = 255;
 	int fxGlitter = defaultGlitter;
 	uint8_t fxFps = defaultFps;
 	mirror fxMirror = MIRROR0;
@@ -417,7 +415,6 @@ void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce)
 	case 0: // Wave
 		fxPatternName = "Wave";
 		fxPattern = pattern::WAVE;
-		fxLength = (neoGroup->LedCount * 1.5); // 48;
 		fxMirror = mirror::MIRROR2;
 		break;
 	case 1: // Dynamic Wave
@@ -450,6 +447,13 @@ void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce)
 		fxFps *= 1.5;				// faster FPS looks better
 		fxMirror = mirror::MIRROR0; //mirror::MIRROR2;
 		break;
+	case 6: // Fill
+		fxPatternName = "Fill";
+		fxPattern = pattern::FILL;
+		fxWave = wave::EASEINOUT;
+		fxFps *= 1.5;				// faster FPS looks better
+		fxMirror = mirror::MIRROR0; //mirror::MIRROR2;
+		break;
 	default:
 		fxPatternName = "Static";
 		fxPattern = pattern::STATIC;
@@ -462,10 +466,9 @@ void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce)
 	setGrpEffect(
 		grpNr,
 		fxPattern,
-		fxLength,
 		fxGlitter,
 		fxFps,
-		direction::FORWARD,
+		fxDirection,
 		fxMirror,
 		fxWave);
 	if (startFx)
@@ -977,7 +980,7 @@ void setup()
 		startFx = false;
 #endif
 		SetColors(grpNr, grpNr == 0 ? defaultColPalAll : defaultColPal);
-		SetEffect(grpNr, grpNr == 0 ? defaultFxNrAll : defaultFxNr, startFx, grpNr == 0);
+		SetEffect(grpNr, grpNr == 0 ? defaultFxNrAll : defaultFxNr, startFx, grpNr == 0, grpNr == 2 ? direction::REVERSE : direction::FORWARD);
 	}
 
 #ifdef i2cOLED

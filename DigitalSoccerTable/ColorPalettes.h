@@ -22,11 +22,13 @@ static std::map<String, std::vector<CRGB>> TeamColorPalettes[] =
     {
         {
             {"Idle", {}},
+            {"Kickoff", {}},
             {"Goal", {}},
             {"Celebration", {}},
         },
         {
             {"Idle", {}},
+            {"Kickoff", {}},
             {"Goal", {}},
             {"Celebration", {}},
         }};
@@ -34,11 +36,36 @@ static void CreateTeamColorPalettes(int teamNr)
 {
     DEBUG_PRINTLN("Initializing team " + String(teamNr + 1) + "'s color palettes...");
     TeamColorPalettes[teamNr]["Idle"] =
-        {CRGB::Black, CRGB(CHSV(TeamHueValues[teamNr], 255, 255)), CRGB::Gray, CRGB(CHSV(TeamHueValues[0], 255, 255))};
+        {
+            CRGB::Black,
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 128)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB::Gray,
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 128))};
+    TeamColorPalettes[teamNr]["Kickoff"] =
+        {
+            CRGB::Black,
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB::Black,
+            CRGB(CHSV(TeamHueValues[teamNr], 128, 255)),
+            CRGB::Black,
+            CRGB(CHSV(TeamHueValues[teamNr], 64, 255)),
+            CRGB::Black,
+            CRGB(CHSV(TeamHueValues[teamNr], 64, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 128, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB::Black};
     TeamColorPalettes[teamNr]["Goal"] =
-        {CRGB::Black, CRGB::White, CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
+        {
+            CRGB::Black,
+            CRGB::White,
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
     TeamColorPalettes[teamNr]["Celebration"] =
-        {CRGB(CHSV(TeamHueValues[teamNr], 255, 255)), ((((uint32_t)CRGB(CHSV(TeamHueValues[teamNr], 255, 255))) & 0xFCFCFC) / 4)};
+        {
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 127))};
 }
 
 #pragma region Helper Methods
