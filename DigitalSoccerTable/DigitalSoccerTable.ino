@@ -10,14 +10,16 @@
 #define DST_DEBUG
 //#define DEBUG_LOOP
 // --- Buttons --------------------------------------
-#define BUTTONS_ON_I2C
-#define SENSORS_ON_I2C
-#define BUTTONS_MAIN_CFG_ON_I2C
-#ifndef BUTTONS_MAIN_CFG_ON_I2C
-#define BUTTON_TEAM_1_PIN D5
-#define BUTTON_TEAM_2_PIN D6
-#define BUTTON_MAIN_PIN D7
-#define BUTTON_SETTINGS_PIN D8
+//#define SENSORS_ON_I2C
+#define BUTTON_MAIN_PIN 1
+#define BUTTON_SETTINGS_PIN 2
+#define BUTTON_GOAL1_PIN 0
+#define BUTTON_GOAL2_PIN 3
+#ifdef SENSORS_ON_I2C
+#define SENSOR1_GOAL1_PIN 4
+#define SENSOR2_GOAL1_PIN 5
+#define SENSOR1_GOAL2_PIN 6
+#define SENSOR2_GOAL2_PIN 7
 #endif
 // --- Game Control----------------------------------
 //#define PAUSE_AFTER_GOAL
@@ -57,9 +59,9 @@
 const int buttonLockDuration = 200;		 // ignore buttons for X ms, prevent prelling
 const int resetGameAfter = 1000 * 2;	 // MainButton pressed for X sec resets game
 const int lockedGoalDuration = 1000 + 2; // ignore goal buttons / sensors for X sec
-const int gameTimeAbsMax = 60 * 10;		 // max X min
-const int gameTimeAbsMin = 60 * 3;		 // min X min
-const int gameTimeDefault = 60 * 5;		 // default X min
+const int gameTimeAbsMax = 60 * 15;		 // max X min
+const int gameTimeAbsMin = 60 * 4;		 // min X min
+const int gameTimeDefault = 60 * 6;		 // default X min
 
 const uint8_t globalBrightness = 128;
 // 0: Wave, 1: Dynamic Wave, 2: Noise, 3: Confetti, 4: Fade, 5: Comet, 6: Fill
@@ -693,7 +695,6 @@ void drawDisplay()
 // **************************************************
 #pragma region Event Handlers
 // [I2C Expander Interrupt Service Routine]
-#ifdef BUTTONS_ON_I2C
 void ISRgateway()
 {
 	//os_intr_lock();
@@ -702,7 +703,6 @@ void ISRgateway()
 	//DEBUG_PRINTLN("PCF8574: change of buttons' state detected in ISRgateway.");
 	//os_intr_unlock();
 }
-#endif
 
 // [Goal Buttons/Sensors]
 void onGoalButtonTeam1()
@@ -759,11 +759,7 @@ void goalScoredByTeam(int team)
 // [Main Button]
 void onMainButton()
 {
-#ifdef BUTTONS_MAIN_CFG_ON_I2C
-	uint8_t val = expander.digitalRead(6);
-#else
-	int val = digitalRead(BUTTON_MAIN_PIN);
-#endif
+	uint8_t val = expander.digitalRead(BUTTON_MAIN_PIN);
 	if (val == 0)
 	{
 		//DEBUG_PRINTLN("Button MAIN pressed.");
@@ -897,21 +893,22 @@ void setup()
 #endif
 
 	// Wire buttons and events (I2C or directly connected)
-#ifdef BUTTONS_ON_I2C
 	DEBUG_PRINT("PCF8574: setting bus speed to ");
 	DEBUG_PRINT(I2C_BUS_SPEED);
 	DEBUG_PRINTLN(".");
 	Wire.setClock(I2C_BUS_SPEED);
 
 	DEBUG_PRINTLN("PCF8574: setting PINs.");
-	expander.pinMode(0, INPUT_PULLUP); // Goal 1, button
-	expander.pinMode(1, INPUT_PULLUP); // Goal 1, sensor
-	expander.pinMode(2, INPUT_PULLUP); // Goal 1, sensor
-	expander.pinMode(3, INPUT_PULLUP); // Goal 2, button
-	expander.pinMode(4, INPUT_PULLUP); // Goal 2, sensor
-	expander.pinMode(5, INPUT_PULLUP); // Goal 2, sensor
-	expander.pinMode(6, INPUT_PULLUP); // Main button
-	expander.pinMode(7, INPUT_PULLUP); // Settings button
+	expander.pinMode(BUTTON_MAIN_PIN, INPUT_PULLUP);	 // Main button
+	expander.pinMode(BUTTON_SETTINGS_PIN, INPUT_PULLUP); // Settings button
+	expander.pinMode(BUTTON_GOAL1_PIN, INPUT_PULLUP);	// Goal 1, button
+	expander.pinMode(BUTTON_GOAL2_PIN, INPUT_PULLUP);	// Goal 2, button
+#ifdef SENSORS_ON_I2C
+	expander.pinMode(SENSOR1_GOAL1_PIN, INPUT_PULLUP); // Goal 1, sensor
+	expander.pinMode(SENSOR2_GOAL1_PIN, INPUT_PULLUP); // Goal 1, sensor
+	expander.pinMode(SENSOR1_GOAL2_PIN, INPUT_PULLUP); // Goal 2, sensor
+	expander.pinMode(SENSOR2_GOAL2_PIN, INPUT_PULLUP); // Goal 2, sensor
+#endif
 	DEBUG_PRINT("PCF8574: use I2C address ");
 	DEBUG_PRINT(I2C_EXPANDER_ADDRESS);
 	DEBUG_PRINTLN(".");
@@ -923,40 +920,23 @@ void setup()
 
 	DEBUG_PRINTLN("PCF8574: attaching goal triggers.");
 	/* Attach a software interrupt on pin 3 of the PCF8574 */
-	expander.attachInterrupt(0, onGoalButtonTeam1, FALLING); // Manual button is pulling DOWN
-	expander.attachInterrupt(3, onGoalButtonTeam2, FALLING); // Manual button is pulling DOWN
+	expander.attachInterrupt(BUTTON_GOAL1_PIN, onGoalButtonTeam1, FALLING); // Manual button is pulling DOWN
+	expander.attachInterrupt(BUTTON_GOAL2_PIN, onGoalButtonTeam2, FALLING); // Manual button is pulling DOWN
 #ifdef SENSORS_ON_I2C
-	expander.attachInterrupt(1, onGoalSensorTeam1, RISING); // IR _reflection_ trigger pulls UP
-	expander.attachInterrupt(2, onGoalSensorTeam1, RISING); // IR _reflection_ trigger pulls UP
-															//expander.attachInterrupt(2, onGoalSensorTeam1, FALLING); // IR _interruption_ trigger pulls DOWN
-	expander.attachInterrupt(4, onGoalSensorTeam2, RISING); // IR _reflection_ trigger pulls UP
-	expander.attachInterrupt(5, onGoalSensorTeam2, RISING); // IR _reflection_ trigger pulls UP
-															//expander.attachInterrupt(5, onGoalSensorTeam2, FALLING); // IR _interruption_ trigger pulls DOWN
+	expander.attachInterrupt(SENSOR1_GOAL1_PIN, onGoalSensorTeam1, RISING); // IR _reflection_ trigger pulls UP
+	expander.attachInterrupt(SENSOR2_GOAL1_PIN, onGoalSensorTeam1, RISING); // IR _reflection_ trigger pulls UP
+																			//expander.attachInterrupt(2, onGoalSensorTeam1, FALLING); // IR _interruption_ trigger pulls DOWN
+	expander.attachInterrupt(SENSOR1_GOAL2_PIN, onGoalSensorTeam2, RISING); // IR _reflection_ trigger pulls UP
+	expander.attachInterrupt(SENSOR2_GOAL2_PIN, onGoalSensorTeam2, RISING); // IR _reflection_ trigger pulls UP
+																			//expander.attachInterrupt(5, onGoalSensorTeam2, FALLING); // IR _interruption_ trigger pulls DOWN
 #endif
 
-#ifdef BUTTONS_MAIN_CFG_ON_I2C
 	DEBUG_PRINTLN("PCF8574: attaching main/cfg buttons.");
-	expander.attachInterrupt(6, onMainButton, CHANGE);	 // Main button; must be able to handle long press to reset
-	expander.attachInterrupt(7, onSettingsButton, RISING); // Settings button; safer to handle when released
-#endif
+	expander.attachInterrupt(BUTTON_MAIN_PIN, onMainButton, CHANGE);		 // Main button; must be able to handle long press to reset
+	expander.attachInterrupt(BUTTON_SETTINGS_PIN, onSettingsButton, RISING); // Settings button; safer to handle when released
 
 	DEBUG_PRINTLN("PCF8574: start listening.");
 	expander.begin(I2C_EXPANDER_ADDRESS);
-#else
-	DEBUG_PRINTLN("Attaching direct handlers for goal buttons.");
-	pinMode(BUTTON_TEAM_1_PIN, INPUT_PULLUP);
-	attachInterrupt(BUTTON_TEAM_1_PIN, onGoalButtonTeam1, FALLING);
-	pinMode(BUTTON_TEAM_2_PIN, INPUT_PULLUP);
-	attachInterrupt(BUTTON_TEAM_2_PIN, onGoalButtonTeam2, FALLING);
-#endif
-
-#ifndef BUTTONS_MAIN_CFG_ON_I2C
-	DEBUG_PRINTLN("Attaching direct handlers for main/cfg buttons.");
-	pinMode(BUTTON_MAIN_PIN, INPUT_PULLUP);
-	attachInterrupt(BUTTON_MAIN_PIN, onMainButton, CHANGE);
-	pinMode(BUTTON_SETTINGS_PIN, INPUT);
-	attachInterrupt(BUTTON_SETTINGS_PIN, onSettingsButton, RISING);
-#endif
 
 	DEBUG_PRINTLN("FastLED: Initializing color palettes");
 	InitColorNames();
@@ -995,7 +975,6 @@ void setup()
 #pragma region Application Loop
 void loop()
 {
-#ifdef BUTTONS_ON_I2C
 	// Evaluate expander pins and execute attached callbacks
 	if (buttonPressedOnI2C)
 	{
@@ -1003,7 +982,6 @@ void loop()
 		DEBUG_PRINTLN("PCF8574: change of buttons' state detected in ISRgateway.");
 		expander.checkForInterrupt();
 	}
-#endif
 
 	// Handle main and settings buttons
 	if (mainButtonReleased)
