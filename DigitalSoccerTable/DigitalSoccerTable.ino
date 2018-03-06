@@ -339,7 +339,7 @@ int startGroup(int grpNr, bool runOnlyOnce = false)
 	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
 	neoGroup->Start(runOnlyOnce);
 
-	updateOledRequired = true;
+	//updateOledRequired = true;
 
 	return grpNr;
 }
@@ -349,7 +349,7 @@ int stopGroup(int grpNr, bool stopNow = false)
 	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
 	neoGroup->Stop(stopNow);
 
-	updateOledRequired = true;
+	//updateOledRequired = true;
 
 	return grpNr;
 }
@@ -374,7 +374,7 @@ int setGrpEffect(
 	uint16_t result = neoGroup->ConfigureEffect(pattern, fxGlitter, fxFps, direction, mirror, wave);
 	//neoGroup->Start();
 
-	updateOledRequired = true;
+	//updateOledRequired = true;
 
 	return result;
 }
@@ -391,7 +391,7 @@ int setGrpColors(
 	uint16_t result = neoGroup->ConfigureColors(colors, clearFirst, generatePalette, crossFade);
 	//neoGroup->Start();
 
-	updateOledRequired = true;
+	//updateOledRequired = true;
 
 	return result;
 }
