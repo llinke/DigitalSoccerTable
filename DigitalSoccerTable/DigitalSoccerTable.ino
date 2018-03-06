@@ -57,8 +57,8 @@
 // **************************************************
 #pragma region Constants Definitions
 const int buttonLockDuration = 200;		 // ignore buttons for X ms, prevent prelling
-const int resetGameAfter = 1000 * 2;	 // MainButton pressed for X sec resets game
-const int lockedGoalDuration = 1000 + 2; // ignore goal buttons / sensors for X sec
+const int resetGameAfter = 1000 * 1;	 // MainButton pressed for X sec resets game
+const int lockedGoalDuration = 1000 * 2; // ignore goal buttons / sensors for X sec
 const int gameTimeAbsMax = 60 * 15;		 // max X min
 const int gameTimeAbsMin = 60 * 4;		 // min X min
 const int gameTimeDefault = 60 * 6;		 // default X min
@@ -81,7 +81,8 @@ const int defaultGlitter = 0; //32;
 // [Common Variables]
 volatile bool buttonPressedOnI2C = false;
 volatile bool updateOledRequired = false;
-
+static volatile bool buttonsLocked = false;
+static volatile int buttonsLockedAt = 0;
 // [Game Control]
 String teamName1 = "HEIM"; //"Dortmund";
 String teamName2 = "GAST"; //"Bayern";
@@ -308,12 +309,7 @@ int addGroup(String grpId, int ledFirst, int ledCount, int ledOffset)
 		(ledFirst + ledCount) > PIXEL_COUNT)
 		return -((((3 * 1000) + ledFirst) * 1000) + ledCount); // Invalid parameter
 
-	DEBUG_PRINT("Adding group '");
-	DEBUG_PRINT(grpId);
-	DEBUG_PRINT("' at ");
-	DEBUG_PRINT(ledFirst);
-	DEBUG_PRINT(" with size ");
-	DEBUG_PRINTLN(ledCount);
+	DEBUG_PRINTLN("Adding group '" + String(grpId) + "' at " + String(ledFirst) + " with size " + String(ledCount));
 
 	// V1: new NeoGroup
 	//NeoGroup *newGroup = new NeoGroup(grpId, ledFirst, ledCount, ledOffset);
@@ -322,8 +318,7 @@ int addGroup(String grpId, int ledFirst, int ledCount, int ledOffset)
 	NeoGroup newGroup = NeoGroup(grpId, ledFirst, ledCount, ledOffset);
 	neoGroups.push_back(newGroup);
 
-	DEBUG_PRINT("GroupCount: ");
-	DEBUG_PRINTLN(neoGroups.size());
+	DEBUG_PRINTLN("GroupCount: " + String(neoGroups.size()));
 
 	return neoGroups.size();
 }
@@ -399,10 +394,7 @@ int setGrpColors(
 void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce, direction fxDirection = direction::FORWARD)
 {
 	DEBUG_PRINTLN("SetEffect ---------------------------------------------------");
-	DEBUG_PRINT("Fx: Configuring LED effect #");
-	DEBUG_PRINT(fxNr);
-	DEBUG_PRINT(" for group #");
-	DEBUG_PRINTLN(grpNr);
+	DEBUG_PRINTLN("Fx: Configuring LED effect #" + String(fxNr) + " for group #" + String(grpNr));
 
 	String fxPatternName = "";
 	pattern fxPattern = pattern::STATIC;
@@ -462,9 +454,7 @@ void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce, direction fxDir
 		fxMirror = mirror::MIRROR0;
 		break;
 	}
-	DEBUG_PRINT("Fx: Changing effect to '");
-	DEBUG_PRINT(fxPatternName);
-	DEBUG_PRINTLN("'");
+	DEBUG_PRINTLN("Fx: Changing effect to '" + String(fxPatternName) + "'");
 	setGrpEffect(
 		grpNr,
 		fxPattern,
@@ -485,14 +475,9 @@ void InitColorNames()
 void SetColors(int grpNr, String palKey)
 {
 	DEBUG_PRINTLN("SetColors --------------------------------------------------");
-	DEBUG_PRINT("Col: Configuring LED colors #");
-	DEBUG_PRINT(palKey);
-	DEBUG_PRINT(" for group #");
-	DEBUG_PRINTLN(grpNr);
+	DEBUG_PRINTLN("Col: Configuring LED colors #" + String(palKey) + " for group #" + String(grpNr));
 
-	DEBUG_PRINT("Col: Changing color palette to '");
-	DEBUG_PRINT(palKey);
-	DEBUG_PRINT("' ");
+	DEBUG_PRINT("Col: Changing color palette to '" + String(palKey) + "' ");
 	std::vector<CRGB> colors = {};
 	if (grpNr == 0)
 	{
@@ -535,13 +520,7 @@ void updateGoalStats()
 #ifdef PAUSE_AFTER_GOAL
 	gamePaused = true;
 #endif
-	DEBUG_PRINT("Goal scored for team ");
-	DEBUG_PRINT(wasGoalForTeam + 1);
-	DEBUG_PRINT(", standing: ");
-	DEBUG_PRINT(goals[0]);
-	DEBUG_PRINT(":");
-	DEBUG_PRINT(goals[1]);
-	DEBUG_PRINTLN(".");
+	DEBUG_PRINTLN("Goal scored for team " + String(wasGoalForTeam + 1) + ", standing: " + String(goals[0]) + ":" + String(goals[1]) + ".");
 
 	wasGoal = false;
 	wasGoalForTeam = -1;
@@ -564,11 +543,7 @@ void updateGameTime(int decBy)
 	}
 
 	gameTimeProgress = (gameTimeRemain * 100) / gameTimeMax;
-	DEBUG_PRINT("Remaining time: ");
-	DEBUG_PRINT(gameTimeRemain);
-	DEBUG_PRINT(", in %: ");
-	DEBUG_PRINT(gameTimeProgress);
-	DEBUG_PRINTLN(".");
+	//DEBUG_PRINTLN("Remaining time: " + String(gameTimeRemain) + ", in %: " + String(gameTimeProgress) + ", changed by " + String(decBy) + "sec.");
 	gameTimeChanged = false;
 
 	// Require update of OLED display
@@ -737,6 +712,11 @@ void onGoalSensorTeam2()
 }
 void goalScoredByTeam(int team)
 {
+	if (areButtonsLocked())
+		return;
+
+	lockButtons();
+
 	if (!gameRunning)
 		return;
 	if (gamePaused)
@@ -747,10 +727,10 @@ void goalScoredByTeam(int team)
 		return; // ignore, already triggered
 
 	/*
-  DEBUG_PRINT("Goal scored by team ");
-  DEBUG_PRINT(team + 1);
-  DEBUG_PRINTLN(".");
-  */
+	DEBUG_PRINT("Goal scored by team ");
+	DEBUG_PRINT(team + 1);
+	DEBUG_PRINTLN(".");
+	*/
 
 	wasGoalForTeam = team;
 	wasGoal = true;
@@ -762,6 +742,11 @@ void onMainButton()
 	uint8_t val = expander.digitalRead(BUTTON_MAIN_PIN);
 	if (val == 0)
 	{
+		if (areButtonsLocked())
+			return;
+
+		lockButtons();
+
 		//DEBUG_PRINTLN("Button MAIN pressed.");
 		mainButtonAt = millis();
 		mainButtonReleased = false;
@@ -777,12 +762,13 @@ void onMainButton()
 		DEBUG_PRINT(pressedFor);
 		DEBUG_PRINTLN("ms.");
 		*/
+		/*
 		if (pressedFor < buttonLockDuration)
 		{
-			//DEBUG_PRINTLN("IGNORED!");
+			DEBUG_PRINTLN("IGNORED!");
 			return; // ignore if press detected again during lock duration
 		}
-
+		*/
 		mainButtonReleased = true;
 	}
 }
@@ -790,9 +776,7 @@ void onMainButton()
 void handleMainButton()
 {
 	uint32_t pressedFor = millis() - mainButtonAt;
-	DEBUG_PRINT("Button MAIN released, pressed for ");
-	DEBUG_PRINT(pressedFor);
-	DEBUG_PRINT("ms: ");
+	DEBUG_PRINT("Button MAIN released, pressed for " + String(pressedFor) + "ms: ");
 
 	if (pressedFor > resetGameAfter)
 	{
@@ -836,9 +820,7 @@ void handleSettingsButton()
 		return; // ignore if game is running
 
 	uint32_t pressedAgo = settingsButtonAt > 0 ? millis() - settingsButtonAt : buttonLockDuration;
-	DEBUG_PRINT("Button SETTINGS pressed ");
-	DEBUG_PRINT(pressedAgo);
-	DEBUG_PRINTLN("ms ago.");
+	DEBUG_PRINTLN("Button SETTINGS pressed " + String(pressedAgo) + "ms ago.");
 	if (pressedAgo < buttonLockDuration)
 	{
 		DEBUG_PRINTLN("IGNORED!");
@@ -850,9 +832,7 @@ void handleSettingsButton()
 			gameTimeMax = gameTimeAbsMin;
 		gameTimeRemain = gameTimeMax;
 
-		DEBUG_PRINT("Changed game time to ");
-		DEBUG_PRINT(gameTimeMax);
-		DEBUG_PRINTLN("sec.");
+		DEBUG_PRINTLN("Changed game time to " + String(gameTimeMax) + "sec.");
 
 		settingsButtonAt = millis();
 		updateGameTime(0);
@@ -869,7 +849,33 @@ void onTickerGametime()
 	if (gamePaused)
 		return;
 
+	DEBUG_PRINTLN("onTickerGametime: changed");
 	gameTimeChanged = true;
+}
+
+// [Button locking]
+void lockButtons()
+{
+	buttonsLocked = true;
+	buttonsLockedAt = millis();
+}
+
+bool areButtonsLocked()
+{
+	if (buttonsLocked)
+	{
+		uint32_t lockedAgo = buttonsLockedAt > 0 ? millis() - buttonsLockedAt : buttonLockDuration;
+		if (lockedAgo < buttonLockDuration)
+		{
+			DEBUG_PRINT("Buttons STILL LOCKED, locked just ");
+			DEBUG_PRINT(lockedAgo);
+			DEBUG_PRINTLN("ms ago...");
+			return true;
+		}
+		buttonsLocked = false;
+	}
+	//DEBUG_PRINTLN("Buttons not locked.");
+	return false;
 }
 #pragma endregion
 
@@ -893,9 +899,7 @@ void setup()
 #endif
 
 	// Wire buttons and events (I2C or directly connected)
-	DEBUG_PRINT("PCF8574: setting bus speed to ");
-	DEBUG_PRINT(I2C_BUS_SPEED);
-	DEBUG_PRINTLN(".");
+	DEBUG_PRINTLN("PCF8574: setting bus speed to " + String(I2C_BUS_SPEED) + ".");
 	Wire.setClock(I2C_BUS_SPEED);
 
 	DEBUG_PRINTLN("PCF8574: setting PINs.");
@@ -909,9 +913,7 @@ void setup()
 	expander.pinMode(SENSOR1_GOAL2_PIN, INPUT_PULLUP); // Goal 2, sensor
 	expander.pinMode(SENSOR2_GOAL2_PIN, INPUT_PULLUP); // Goal 2, sensor
 #endif
-	DEBUG_PRINT("PCF8574: use I2C address ");
-	DEBUG_PRINT(I2C_EXPANDER_ADDRESS);
-	DEBUG_PRINTLN(".");
+	DEBUG_PRINTLN("PCF8574: use I2C address " + String(I2C_EXPANDER_ADDRESS) + ".");
 
 	DEBUG_PRINTLN("PCF8574: attaching ISR handler.");
 	//expander.enableInterrupt(I2C_INT_PIN, ISRgateway);
@@ -944,16 +946,14 @@ void setup()
 
 	DEBUG_PRINTLN("FastLED: Initializing LED strip");
 	initStrip(true, PLAY_DEMO);
-	DEBUG_PRINT("FastLED: Amount of LEDs: ");
-	DEBUG_PRINTLN(PIXEL_COUNT);
+	DEBUG_PRINTLN("FastLED: Amount of LEDs: " + String(PIXEL_COUNT));
 
 	DEBUG_PRINTLN("FastLED: Starting LED strip");
 	startStrip();
 
 	for (int grpNr = 0; grpNr < neoGroups.size(); grpNr++)
 	{
-		DEBUG_PRINT("FastLED: Setting up group #");
-		DEBUG_PRINTLN(grpNr);
+		DEBUG_PRINTLN("FastLED: Setting up group #" + String(grpNr));
 		//bool startFx = true;
 		bool startFx = grpNr != 0;
 #ifdef DO_NOT_START_FX_ON_INIT
@@ -1027,11 +1027,8 @@ void loop()
 		{
 			int teamNr = changeColorForTeam;
 			changeColorForTeam = -1;
-			DEBUG_PRINT("Changing color of team #");
-			DEBUG_PRINT(teamNr + 1);
-			DEBUG_PRINT(" to ");
+			DEBUG_PRINT("Changing color of team #" + String(teamNr + 1) + " to ");
 			TeamHueValues[teamNr] += 32;
-			//DEBUG_PRINT(TeamHueValues[teamNr]);
 			PrintHex8(TeamHueValues[teamNr]);
 			DEBUG_PRINTLN(".");
 			CreateTeamColorPalettes(teamNr);
@@ -1041,9 +1038,8 @@ void loop()
 		bool isActiveMainGrp = (&(neoGroups.at(0)))->Active;
 #ifdef DEBUG_LOOP
 /*
-				DEBUG_PRINT("Loop: Main group active -> ");
-				DEBUG_PRINTLN(isActiveMainGrp);
-	*/
+				DEBUG_PRINTLN("Loop: Main group active -> " + String(isActiveMainGrp));
+*/
 #endif
 		bool ledsUpdated = false;
 		for (int grpNr = 0; grpNr < neoGroups.size(); grpNr++)
@@ -1053,16 +1049,14 @@ void loop()
 			if (isActiveMainGrp && grpNr != 0)
 			{
 #ifdef DEBUG_LOOP
-				DEBUG_PRINT("Loop: Skipping group #");
-				DEBUG_PRINTLN(i);
+				DEBUG_PRINTLN("Loop: Skipping group #" + String(i));
 #endif
 				continue; // Don't update other groups if main group (all LEDs) is active
 			}
 
 #ifdef DEBUG_LOOP
 /*
-			DEBUG_PRINT("Loop: Updating group ");
-			DEBUG_PRINTLN(i);
+			DEBUG_PRINTLN("Loop: Updating group " + String(i));
 */
 #endif
 			ledsUpdated |= neoGroup->Update();
