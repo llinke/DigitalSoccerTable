@@ -20,8 +20,6 @@
 #define SENSOR1_GOAL2_PIN 6
 #define SENSOR2_GOAL2_PIN 7
 #endif
-// --- Game Control----------------------------------
-#define PAUSE_AFTER_GOAL false
 #pragma endregion
 // **************************************************
 
@@ -55,26 +53,66 @@
 // **************************************************
 
 // **************************************************
+// *** Emnumerations
+// **************************************************
+#pragma region Enumerations
+enum gamePhase
+{
+	GAME_BOOTED,
+	GAME_IDLE,
+	GAME_COINTOSS,
+	GAME_KICKOFF,
+	GAME_RUNNING,
+	GAME_PAUSED,
+	GAME_GOAL,
+	GAME_CELEBRATION,
+	GAME_OVER
+};
+#pragma endregion
+// **************************************************
+
+// **************************************************
 // *** Constants Definitions
 // **************************************************
 #pragma region Constants Definitions
 const int buttonLockDuration = 200;		 // ignore buttons for X ms, prevent prelling
 const int resetGameAfter = 1000 * 1;	 // MainButton pressed for X sec resets game
 const int lockedGoalDuration = 1000 * 2; // ignore goal buttons / sensors for X sec
+const int gameTimeAbsMin = 60 * 1;		 //4; // min X min
 const int gameTimeAbsMax = 60 * 15;		 // max X min
-const int gameTimeAbsMin = 60 * 4;		 // min X min
 const int gameTimeDefault = 60 * 6;		 // default X min
 
 const uint8_t globalBrightness = 128;
-// 0: Wave, 1: Dynamic Wave, 2: Noise, 3: Confetti, 4: Fade, 5: Comet, 6: Fill
+const uint8_t teamHueChangeValue = 32;
+
+// 0: Wave, 1: Dynamic Wave, 2: Noise, 3: Confetti, 4: Fade, 5: Comet, 6: Orbit, 7: Fill
+const uint8_t fxNrWave = 0;
+const uint8_t fxNrDynamicWave = 1;
+const uint8_t fxNrNoise = 2;
+const uint8_t fxNrConfetti = 3;
+const uint8_t fxNrFade = 4;
+const uint8_t fxNrComet = 5;
+const uint8_t fxNrOrbit = 6;
+const uint8_t fxNrFill = 7;
 const int maxFxNr = 5;
 const int defaultFxNr = 1; //6;
 const int defaultFxNrAll = 5;
 const String defaultColPal = "Idle";
 const String defaultColPalAll = "Rainbow";
-const int defaultFps = 50;	//25;
-const int defaultGlitter = 0; //32;
+const int defaultFps = 50;
+const int defaultGlitter = 0;
+const int defaultGlitterCelebration = 64;
+const int fxGamePhaseIdle = fxNrDynamicWave;
+const int fxGamePhaseCoinToss = fxNrFade;
+const int fxGamePhaseKickOff = fxNrFade;
+const int fxGamePhaseRunning = fxNrNoise;
+const int fxGamePhasePaused = fxNrConfetti;
+const int fxGamePhaseGoal = fxNrComet;
+const int fxGamePhaseGoal2 = fxNrFill;
+const int fxGamePhaseCelebration = fxNrFade;
+const int fxGamePhaseOver = fxNrOrbit;
 #pragma endregion
+// **************************************************
 
 // **************************************************
 // *** Variable Declarations
@@ -83,8 +121,9 @@ const int defaultGlitter = 0; //32;
 // [Common Variables]
 volatile bool buttonPressedOnI2C = false;
 volatile bool updateOledRequired = false;
-static volatile bool buttonsLocked = false;
-static volatile int buttonsLockedAt = 0;
+volatile bool buttonsLocked = false;
+volatile int buttonsLockedAt = 0;
+
 // [Game Control]
 String teamName1 = "HEIM"; //"Dortmund";
 String teamName2 = "GAST"; //"Bayern";
@@ -94,10 +133,13 @@ volatile bool mainButtonReleased = false;
 volatile uint32_t mainButtonAt = 0;
 volatile bool settingsButtonPressed = false;
 volatile uint32_t settingsButtonAt = 0;
+volatile gamePhase currentGamePhase = gamePhase::GAME_BOOTED;
+volatile int currentGamePhaseStep = 0;
+volatile int currentGamePhaseTeamNr = -1;
 
 // [Goals / Standings]
 volatile bool wasGoal = false;
-volatile int wasGoalForTeam = -1;
+volatile int wasGoalByTeam = -1;
 volatile int goals[] = {0, 0};
 volatile bool lockedGoalTriggers = false;
 volatile uint32_t lockedGoalTriggersAt = 0;
@@ -122,6 +164,7 @@ volatile int changeColorForTeam = -1;
 //std::vector<NeoGroup *> neoGroups;
 std::vector<NeoGroup> neoGroups;
 #pragma endregion
+// **************************************************
 
 // **************************************************
 // *** WiFi
@@ -330,6 +373,12 @@ bool isGroupActive(int grpNr)
 	return neoGroup->Active;
 }
 
+bool isGroupFadingOut(int grpNr)
+{
+	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
+	return !(neoGroup->Active) && (neoGroup->IsFadingOut());
+}
+
 int startGroup(int grpNr, bool runOnlyOnce = false)
 {
 	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
@@ -354,20 +403,21 @@ int setGrpEffect(
 	int grpNr,
 	pattern pattern,
 	int amountglitter = -1,
-	uint8_t fps = 0,
+	int fps = 0,
 	direction direction = FORWARD,
 	mirror mirror = MIRROR0,
-	wave wave = LINEAR)
+	wave wave = LINEAR,
+	int speed = 1)
 {
 	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
 	neoGroup->Stop();
 
 	//int fxGlitter = amountglitter <= 0 ? neoGroup->GetGlitter() : amountglitter;
 	int fxGlitter = amountglitter <= 0 ? defaultGlitter : amountglitter;
-	//uint8_t fxFps = fps <= 0 ? neoGroup->GetFps() : fps;
-	uint8_t fxFps = fps <= 0 ? defaultFps : fps;
+	//int fxFps = fps <= 0 ? neoGroup->GetFps() : fps;
+	int fxFps = fps > 0 ? fps : defaultFps;
 
-	uint16_t result = neoGroup->ConfigureEffect(pattern, fxGlitter, fxFps, direction, mirror, wave);
+	uint16_t result = neoGroup->ConfigureEffect(pattern, fxGlitter, fxFps, direction, mirror, wave, speed);
 	//neoGroup->Start();
 
 	//updateOledRequired = true;
@@ -392,57 +442,70 @@ int setGrpColors(
 	return result;
 }
 
-void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce, direction fxDirection = direction::FORWARD)
+void SetEffect(int grpNr, int fxNr, bool startFx,
+			   bool onlyOnce,
+			   direction fxDirection = direction::FORWARD,
+			   int amountGlitter = -1,
+			   int targetFps = 0,
+			   int speed = 1)
 {
 	DEBUG_PRINTLN("SetEffect ---------------------------------------------------");
 	DEBUG_PRINTLN("Fx: Configuring LED effect #" + String(fxNr) + " for group #" + String(grpNr));
 
 	String fxPatternName = "";
 	pattern fxPattern = pattern::STATIC;
-	int fxGlitter = defaultGlitter;
-	uint8_t fxFps = defaultFps;
+	int fxGlitter = amountGlitter >= 0 ? amountGlitter : defaultGlitter;
+	int fxFps = defaultFps;
 	mirror fxMirror = MIRROR0;
 	wave fxWave = wave::LINEAR;
 
 	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
 	switch (fxNr)
 	{
-	case 0: // Wave
+	case fxNrWave:
 		fxPatternName = "Wave";
 		fxPattern = pattern::WAVE;
 		fxMirror = mirror::MIRROR2;
 		break;
-	case 1: // Dynamic Wave
+	case fxNrDynamicWave:
 		fxPatternName = "Dynamic Wave";
 		fxPattern = pattern::DYNAMICWAVE;
 		fxMirror = mirror::MIRROR1; // mirror::MIRROR0;
 		break;
-	case 2: // Noise
+	case fxNrNoise:
 		fxPatternName = "Noise";
 		fxPattern = pattern::NOISE;
 		fxMirror = mirror::MIRROR1; // mirror::MIRROR0;
 		fxFps *= 2;					// double FPS looks better
 		break;
-	case 3: // confetti
+	case fxNrConfetti:
 		fxPatternName = "Confetti";
 		fxPattern = pattern::CONFETTI;
 		fxGlitter = 0;
 		fxFps /= 2; // half FPS looks better
 		break;
-	case 4: // Fade
+	case fxNrFade:
 		fxPatternName = "Fade";
 		fxPattern = pattern::FADE;
 		fxFps /= 2; // half FPS looks better
 		break;
-	case 5: // Comet
+	case fxNrComet:
 		fxPatternName = "Comet";
 		fxPattern = pattern::COMET;
-		//fxWave = wave::EASE;
+		fxWave = wave::EASEINOUT;
+		// fxWave = wave::SINUS;
+		fxFps *= 3;					// faster FPS looks better
+		fxMirror = mirror::MIRROR0; //mirror::MIRROR2;
+		break;
+	case fxNrOrbit:
+		fxPatternName = "Orbit";
+		fxPattern = pattern::COMET;
+		// fxWave = wave::EASEINOUT;
 		fxWave = wave::SINUS;
 		fxFps *= 1.5;				// faster FPS looks better
 		fxMirror = mirror::MIRROR0; //mirror::MIRROR2;
 		break;
-	case 6: // Fill
+	case fxNrFill:
 		fxPatternName = "Fill";
 		fxPattern = pattern::FILL;
 		fxWave = wave::EASEINOUT;
@@ -455,6 +518,8 @@ void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce, direction fxDir
 		fxMirror = mirror::MIRROR0;
 		break;
 	}
+	if (targetFps > 0)
+		fxFps = targetFps;
 	DEBUG_PRINTLN("Fx: Changing effect to '" + String(fxPatternName) + "'");
 	setGrpEffect(
 		grpNr,
@@ -463,7 +528,8 @@ void SetEffect(int grpNr, int fxNr, bool startFx, bool onlyOnce, direction fxDir
 		fxFps,
 		fxDirection,
 		fxMirror,
-		fxWave);
+		fxWave,
+		speed);
 	if (startFx)
 		startGroup(grpNr, onlyOnce);
 }
@@ -473,7 +539,7 @@ void InitColorNames()
 	InitColorPalettes();
 }
 
-void SetColors(int grpNr, String palKey)
+void SetColors(int grpNr, String palKey, bool crossFade = CROSSFADE_PALETTES, int teamNr = -1)
 {
 	DEBUG_PRINTLN("SetColors --------------------------------------------------");
 	DEBUG_PRINTLN("Col: Configuring LED colors #" + String(palKey) + " for group #" + String(grpNr));
@@ -489,12 +555,342 @@ void SetColors(int grpNr, String palKey)
 	else
 	{
 		DEBUG_PRINTLN("of TeamColorPalettes.");
-		if (TeamColorPalettes[grpNr - 1].find(palKey) != TeamColorPalettes[grpNr - 1].end())
-			colors = TeamColorPalettes[grpNr - 1].find(palKey)->second;
+		int teamPalNr = teamNr >= 0 ? teamNr : grpNr - 1;
+		if (TeamColorPalettes[teamPalNr].find(palKey) != TeamColorPalettes[teamPalNr].end())
+			colors = TeamColorPalettes[teamPalNr].find(palKey)->second;
 	}
-	setGrpColors(grpNr, colors, true, true, CROSSFADE_PALETTES);
+	setGrpColors(grpNr, colors, true, true, crossFade);
 	DEBUG_PRINTLN("Dumping palette's colors...");
 	DumpPalette(colors);
+}
+#pragma endregion
+
+// **************************************************
+// *** Game Phases
+// **************************************************
+#pragma region Game Phases
+bool isReadyForGamePhase(int teamNr, bool stopNow = false)
+{
+	int grpNr = teamNr + 1;
+	if (isGroupActive(grpNr))
+	{
+		stopGroup(grpNr, stopNow);
+		return false;
+	}
+	else
+	{
+		if (isGroupFadingOut(grpNr))
+			return false; // wait until groups are stopped and faded out
+	}
+	return true;
+}
+
+bool isRunningOnce(int teamNr)
+{
+	int grpNr = teamNr + 1;
+	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
+	return neoGroup->IsRunningOnce();
+}
+
+void changeGamePhase(gamePhase newGamePhase, int teamNr = -1)
+{
+	// if (currentGamePhase == newGamePhase)
+	// 	return;
+	DEBUG_PRINTLN("PHASE: changing to >> " + String(newGamePhase) + " for team " + String(currentGamePhaseTeamNr));
+	currentGamePhaseStep = 0;
+	currentGamePhaseTeamNr = teamNr;
+	currentGamePhase = newGamePhase;
+}
+
+void playGamePhaseIdle()
+{
+	// -- <[ PREPARE ]> ----------
+	if (currentGamePhaseStep == 0) // Prepare
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for FX to stop.");
+		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+			currentGamePhaseStep++;
+	}
+	// -- <[ START FX ]> ----------
+	if (currentGamePhaseStep == 1) // Start FX
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "Starting FX.");
+		SetColors(1, "Idle", true);
+		SetColors(2, "Idle", true);
+		SetEffect(1, fxGamePhaseIdle, true, false);
+		SetEffect(2, fxGamePhaseIdle, true, false);
+		currentGamePhaseStep++;
+	}
+	// Nothing more to do :-)
+}
+
+void playGamePhaseRunning()
+{
+	// -- <[ PREPARE ]> ----------
+	if (currentGamePhaseStep == 0) // Prepare
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for FX to stop.");
+		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+			currentGamePhaseStep++;
+	}
+	// -- <[ START FX ]> ----------
+	if (currentGamePhaseStep == 1) // Start FX
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "Starting FX.");
+		SetColors(1, "InGame", true);
+		SetColors(2, "InGame", true);
+		SetEffect(1, fxGamePhaseRunning, true, false);
+		SetEffect(2, fxGamePhaseRunning, true, false);
+		currentGamePhaseStep++;
+	}
+	// Nothing more to do :-)
+}
+
+void playGamePhasePaused()
+{
+	// -- <[ PREPARE ]> ----------
+	if (currentGamePhaseStep == 0) // Prepare
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for FX to stop.");
+		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+			currentGamePhaseStep++;
+	}
+	// -- <[ START FX ]> ----------
+	if (currentGamePhaseStep == 1) // Start FX
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "Starting FX.");
+		SetColors(1, "Idle", true);
+		SetColors(2, "Idle", true);
+		SetEffect(1, fxGamePhasePaused, true, false);
+		SetEffect(2, fxGamePhasePaused, true, false);
+		currentGamePhaseStep++;
+	}
+	// Nothing more to do :-)
+}
+
+void playGamePhaseCoinToss()
+{
+	// SetColors(1, "InGame", true);
+	// SetColors(2, "InGame", true);
+	// SetEffect(1, fxGamePhasePaused, true, false);
+	// SetEffect(2, fxGamePhasePaused, true, false);
+}
+
+void playGamePhaseKickOff()
+{
+	// SetColors(1, "KickOff", false, teamNr);
+	// SetColors(2, "KickOff", false, teamNr);
+	// SetEffect(1, fxGamePhaseKickOff, true, false);
+	// SetEffect(2, fxGamePhaseKickOff, true, false);
+}
+
+void playGamePhaseGoal()
+{
+	// -- <[ PREPARE ]> ----------
+	if (currentGamePhaseStep == 0) // Prepare
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for FX to stop.");
+		if (isReadyForGamePhase(0, true) && isReadyForGamePhase(1, true))
+			currentGamePhaseStep++;
+	}
+	// -- <[ START FX ]> ----------
+	if (currentGamePhaseStep == 1) // Start FX
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "Starting FX for " + String(currentGamePhaseTeamNr) + ".");
+		SetColors(1, "Goal", false, currentGamePhaseTeamNr);
+		SetColors(2, "Goal", false, currentGamePhaseTeamNr);
+		SetEffect(1, fxGamePhaseGoal, true,
+				  true,
+				  currentGamePhaseTeamNr == 0 ? direction::FORWARD : direction::REVERSE,
+				  defaultGlitter,
+				  150,
+				  2);
+		SetEffect(2, fxGamePhaseGoal, true,
+				  true,
+				  currentGamePhaseTeamNr == 0 ? direction::REVERSE : direction::FORWARD,
+				  defaultGlitter,
+				  150,
+				  2);
+		currentGamePhaseStep++;
+	}
+	// -- <[ PLAY FX ]> ----------
+	if (currentGamePhaseStep == 2) // Wait until FX is finished
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for runonce-FX to finish.");
+		if (!isRunningOnce(0) && !isRunningOnce(1))
+		{
+			currentGamePhaseStep++;
+		}
+	}
+	// -- <[ START FX ]> ----------
+	if (currentGamePhaseStep == 3) // Start FX
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "Starting FX for " + String(currentGamePhaseTeamNr) + ".");
+		SetColors(1, "Goal2", false, currentGamePhaseTeamNr);
+		SetColors(2, "Goal2", false, currentGamePhaseTeamNr);
+		SetEffect(1, fxGamePhaseGoal2, true,
+				  true,
+				  currentGamePhaseTeamNr == 0 ? direction::REVERSE : direction::FORWARD,
+				  defaultGlitter,
+				  100,
+				  4);
+		SetEffect(2, fxGamePhaseGoal2, true,
+				  true,
+				  currentGamePhaseTeamNr == 0 ? direction::FORWARD : direction::REVERSE,
+				  defaultGlitter,
+				  100,
+				  4);
+		currentGamePhaseStep++;
+	}
+	// -- <[ PLAY FX ]> ----------
+	if (currentGamePhaseStep == 4) // Wait until FX is finished
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for runonce-FX to finish.");
+		if (!isRunningOnce(0) && !isRunningOnce(1))
+		{
+			currentGamePhaseStep++;
+		}
+	}
+	// -- <[ SWITCH GAME PHASE ]> ----------
+	if (currentGamePhaseStep == 5) // Switch to next game phase
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for FX to stop.");
+		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+		{
+			currentGamePhaseStep++;
+			// Switch to game phase celebration
+			changeGamePhase(gamePhase::GAME_CELEBRATION, currentGamePhaseTeamNr);
+
+			lockedGoalTriggers = false;
+		}
+	}
+	// Nothing more to do :-)
+}
+
+void playGamePhaseCelebration()
+{
+	// -- <[ PREPARE ]> ----------
+	if (currentGamePhaseStep == 0) // Prepare
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for FX to stop.");
+		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+			currentGamePhaseStep++;
+	}
+	// -- <[ START FX ]> ----------
+	if (currentGamePhaseStep == 1) // Start FX
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "Starting FX for " + String(currentGamePhaseTeamNr) + ".");
+		SetColors(1, "Celebration", true, currentGamePhaseTeamNr);
+		SetColors(2, "Celebration", true, currentGamePhaseTeamNr);
+		SetEffect(1, fxGamePhaseCelebration, true, false, direction::FORWARD, defaultGlitterCelebration);
+		SetEffect(2, fxGamePhaseCelebration, true, false, direction::FORWARD, defaultGlitterCelebration);
+		currentGamePhaseStep++;
+	}
+	// Nothing more to do :-)
+}
+
+void playGamePhaseGameOver()
+{
+	// -- <[ PREPARE ]> ----------
+	if (currentGamePhaseStep == 0) // Prepare
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for FX to stop.");
+		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+			currentGamePhaseStep++;
+	}
+	// -- <[ START FX ]> ----------
+	if (currentGamePhaseStep == 1) // Start FX
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "Starting FX.");
+		SetColors(1, "Goal", true);
+		SetColors(2, "Goal", true);
+		SetEffect(1, fxGamePhaseOver, true,
+				  true, direction::FORWARD);
+		SetEffect(2, fxGamePhaseOver, true,
+				  true, direction::FORWARD);
+		currentGamePhaseStep++;
+	}
+	// -- <[ PLAY FX ]> ----------
+	if (currentGamePhaseStep == 2) // Wait until FX is finished
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for runonce-FX to finish.");
+		if (!isRunningOnce(0) && !isRunningOnce(1))
+		{
+			currentGamePhaseStep++;
+		}
+	}
+	// -- <[ SWITCH GAME PHASE ]> ----------
+	if (currentGamePhaseStep == 3) // Switch to next game phase
+	{
+		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+					  "waiting for FX to stop.");
+		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+		{
+			currentGamePhaseStep++;
+
+			// Switch to game phase celebration
+			if (goals[0] == goals[1]) // draw game
+			{
+				changeGamePhase(gamePhase::GAME_IDLE);
+			}
+			else
+			{
+				changeGamePhase(gamePhase::GAME_CELEBRATION, goals[0] > goals[1] ? 0 : 1);
+			}
+			currentGamePhaseStep++;
+		}
+	}
+	// Nothing more to do :-)
+}
+
+void playGamePhase()
+{
+	switch (currentGamePhase)
+	{
+	case gamePhase::GAME_IDLE:
+		playGamePhaseIdle();
+		break;
+	case gamePhase::GAME_RUNNING:
+		playGamePhaseRunning();
+		break;
+	case gamePhase::GAME_PAUSED:
+		playGamePhasePaused();
+		break;
+	case gamePhase::GAME_COINTOSS:
+		playGamePhaseCoinToss();
+		break;
+	case gamePhase::GAME_KICKOFF:
+		playGamePhaseKickOff();
+		break;
+	case gamePhase::GAME_GOAL:
+		playGamePhaseGoal();
+		break;
+	case gamePhase::GAME_CELEBRATION:
+		playGamePhaseCelebration();
+		break;
+	case gamePhase::GAME_OVER:
+		playGamePhaseGameOver();
+		break;
+	default:
+		break;
+	}
 }
 #pragma endregion
 
@@ -514,18 +910,16 @@ void updateGoalStats()
 	if (!wasGoal)
 		return;
 
-	goals[wasGoalForTeam]++;
+	goals[wasGoalByTeam]++;
 	lockedGoalTriggers = true;
 	lockedGoalTriggersAt = millis();
 	gamePaused = true;
-	if (PAUSE_AFTER_GOAL)
-	{
-		gamePaused = true;
-	}
-	DEBUG_PRINTLN("Goal scored for team " + String(wasGoalForTeam + 1) + ", standing: " + String(goals[0]) + ":" + String(goals[1]) + ".");
+	DEBUG_PRINTLN("Goal scored for team " + String(wasGoalByTeam + 1) + ", standing: " + String(goals[0]) + ":" + String(goals[1]) + ".");
+
+	changeGamePhase(gamePhase::GAME_GOAL, wasGoalByTeam);
 
 	wasGoal = false;
-	wasGoalForTeam = -1;
+	wasGoalByTeam = -1;
 
 	// Require update of OLED display
 	updateOledRequired = true;
@@ -533,6 +927,15 @@ void updateGoalStats()
 
 void updateGameTime(int decBy)
 {
+	if (!gameRunning)
+		return;
+	if (gamePaused)
+		return;
+	if (lockedGoalTriggers)
+		return;
+
+	gameTimeChanged = false;
+
 	if (gameTimeRemain > 0)
 	{
 		gameTimeRemain += decBy;
@@ -542,11 +945,12 @@ void updateGameTime(int decBy)
 		gameRunning = false;
 		gamePaused = true;
 		//gameTimeRemain = gameTimeMax;
+
+		changeGamePhase(gamePhase::GAME_OVER);
 	}
 
 	gameTimeProgress = (gameTimeRemain * 100) / gameTimeMax;
-	//DEBUG_PRINTLN("Remaining time: " + String(gameTimeRemain) + ", in %: " + String(gameTimeProgress) + ", changed by " + String(decBy) + "sec.");
-	gameTimeChanged = false;
+	DEBUG_PRINTLN("Remaining time: " + String(gameTimeRemain) + ", in %: " + String(gameTimeProgress) + ", changed by " + String(decBy) + "sec.");
 
 	// Require update of OLED display
 	updateOledRequired = true;
@@ -560,13 +964,15 @@ void resetGame()
 	goals[0] = 0;
 	goals[1] = 0;
 	wasGoal = false;
-	wasGoalForTeam = -1;
+	wasGoalByTeam = -1;
 	lockedGoalTriggers = false;
 	lockedGoalTriggersAt = millis();
 
 	// Reset time settings
 	gameTimeRemain = gameTimeMax;
 	updateGameTime(0);
+
+	changeGamePhase(gamePhase::GAME_IDLE);
 
 	// Reset OLED display
 	updateOledRequired = true;
@@ -651,10 +1057,10 @@ void drawDisplay()
 
 	// Alternative 1: separate headers by crossed lines
 	/*
-  display.setColor(OLEDDISPLAY_COLOR::WHITE);
-  display.drawVerticalLine(64, 0, 50);
-  display.drawHorizontalLine(0, 14, 128);
-  */
+	display.setColor(OLEDDISPLAY_COLOR::WHITE);
+	display.drawVerticalLine(64, 0, 50);
+	display.drawHorizontalLine(0, 14, 128);
+	*/
 	// Alternative 2: highlight headers by filled rectangle
 	display.setColor(OLEDDISPLAY_COLOR::INVERSE);
 	display.fillRect(0, 0, 128, 14);
@@ -734,7 +1140,7 @@ void goalScoredByTeam(int team)
 	DEBUG_PRINTLN(".");
 	*/
 
-	wasGoalForTeam = team;
+	wasGoalByTeam = team;
 	wasGoal = true;
 }
 
@@ -792,11 +1198,21 @@ void handleMainButton()
 		{
 			// Start game if not started
 			gameRunning = true;
+
+			changeGamePhase(gamePhase::GAME_RUNNING);
 		}
 		else
 		{
 			// Pause/Unpause if was started
 			gamePaused = !gamePaused;
+			if (gamePaused)
+			{
+				changeGamePhase(gamePhase::GAME_PAUSED);
+			}
+			else
+			{
+				changeGamePhase(gamePhase::GAME_RUNNING);
+			}
 		}
 		updateOledRequired = true;
 		DEBUG_PRINTLN(gameRunning ? "game started." : "games paused.");
@@ -850,8 +1266,10 @@ void onTickerGametime()
 		return;
 	if (gamePaused)
 		return;
+	if (lockedGoalTriggers)
+		return;
 
-	DEBUG_PRINTLN("onTickerGametime: changed");
+	// DEBUG_PRINTLN("onTickerGametime: changed");
 	gameTimeChanged = true;
 }
 
@@ -955,10 +1373,13 @@ void setup()
 	{
 		DEBUG_PRINTLN("FastLED: Setting up group #" + String(grpNr));
 		//bool startFx = true;
-		bool startFx = grpNr != 0;
+		//bool startFx = grpNr != 0;
+		bool startFx = false;
 		SetColors(grpNr, grpNr == 0 ? defaultColPalAll : defaultColPal);
-		SetEffect(grpNr, grpNr == 0 ? defaultFxNrAll : defaultFxNr, startFx, grpNr == 0, grpNr == 2 ? direction::REVERSE : direction::FORWARD);
+		SetEffect(grpNr, grpNr == 0 ? defaultFxNrAll : defaultFxNr, startFx, grpNr == 0); //, grpNr == 2 ? direction::REVERSE : direction::FORWARD);
 	}
+
+	changeGamePhase(gamePhase::GAME_IDLE);
 
 	drawDisplay();
 }
@@ -999,15 +1420,15 @@ void loop()
 	{
 		updateGoalStats();
 	}
-	if (lockedGoalTriggers &&
-		((millis() - lockedGoalTriggersAt) > lockedGoalDuration))
-	{
-		// Release lock after X ms
-		lockedGoalTriggers = false;
-		gamePaused = false;
-		updateOledRequired = true;
-		DEBUG_PRINTLN("Goal lock released.");
-	}
+	// if (lockedGoalTriggers &&
+	// 	((millis() - lockedGoalTriggersAt) > lockedGoalDuration))
+	// {
+	// 	// Release lock after X ms
+	// 	lockedGoalTriggers = false;
+	// 	gamePaused = false;
+	// 	updateOledRequired = true;
+	// 	DEBUG_PRINTLN("Goal lock released.");
+	// }
 
 	// Update OLED display only if required
 	if (updateOledRequired)
@@ -1023,12 +1444,14 @@ void loop()
 			int teamNr = changeColorForTeam;
 			changeColorForTeam = -1;
 			DEBUG_PRINT("Changing color of team #" + String(teamNr + 1) + " to ");
-			TeamHueValues[teamNr] += 32;
+			TeamHueValues[teamNr] += teamHueChangeValue;
 			PrintHex8(TeamHueValues[teamNr]);
 			DEBUG_PRINTLN(".");
 			CreateTeamColorPalettes(teamNr);
 			SetColors(teamNr + 1, "Idle");
 		}
+
+		playGamePhase();
 
 		bool isActiveMainGrp = (&(neoGroups.at(0)))->Active;
 		//DEBUG_PRINTLN("Loop: Main group active -> " + String(isActiveMainGrp));

@@ -22,14 +22,17 @@ static std::map<String, std::vector<CRGB>> TeamColorPalettes[] =
     {
         {
             {"Idle", {}},
-            {"Kickoff", {}},
+            {"KickOff", {}},
+            {"InGame", {}},
             {"Goal", {}},
             {"Celebration", {}},
         },
         {
             {"Idle", {}},
-            {"Kickoff", {}},
+            {"KickOff", {}},
+            {"InGame", {}},
             {"Goal", {}},
+            {"Goal2", {}},
             {"Celebration", {}},
         }};
 static void CreateTeamColorPalettes(int teamNr)
@@ -43,7 +46,7 @@ static void CreateTeamColorPalettes(int teamNr)
             CRGB::Gray,
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             CRGB(CHSV(TeamHueValues[teamNr], 255, 128))};
-    TeamColorPalettes[teamNr]["Kickoff"] =
+    TeamColorPalettes[teamNr]["KickOff"] =
         {
             CRGB::Black,
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
@@ -57,14 +60,30 @@ static void CreateTeamColorPalettes(int teamNr)
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             CRGB::Black};
+    TeamColorPalettes[teamNr]["InGame"] =
+        {
+            CRGB::Black,
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 128)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB::Gray,
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 128))};
     TeamColorPalettes[teamNr]["Goal"] =
         {
             CRGB::Black,
             CRGB::White,
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
+    TeamColorPalettes[teamNr]["Goal2"] =
+        {
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255))}; /*,
+            CRGB::White,
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB::Black};*/
     TeamColorPalettes[teamNr]["Celebration"] =
         {
+            CRGB::Black,
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB::White,
             CRGB(CHSV(TeamHueValues[teamNr], 255, 127))};
 }
 
