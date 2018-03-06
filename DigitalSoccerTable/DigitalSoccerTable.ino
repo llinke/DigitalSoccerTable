@@ -1,14 +1,13 @@
 // **************************************************
 // *** Compiler Flags
 // **************************************************
+#pragma region Compiler Flags
 // --- WiFi -----------------------------------------
 //#define INCLUDE_WIFI
 // --- Demo --------- -------------------------------
 #define PLAY_DEMO true
-#define COMET_DEMO
 // --- DEBUG ----------------------------------------
-#define DST_DEBUG
-//#define DEBUG_LOOP
+#define ENABLE_SERIAL_DEBUG
 // --- Buttons --------------------------------------
 //#define SENSORS_ON_I2C
 #define BUTTON_MAIN_PIN 1
@@ -22,12 +21,14 @@
 #define SENSOR2_GOAL2_PIN 7
 #endif
 // --- Game Control----------------------------------
-//#define PAUSE_AFTER_GOAL
+#define PAUSE_AFTER_GOAL false
+#pragma endregion
 // **************************************************
 
 // **************************************************
 // *** Includes
 // **************************************************
+#pragma region Includes
 #include "SerialDebug.h"
 #include "I2CInclude.h"
 #include "FastLedInclude.h"
@@ -50,6 +51,7 @@
 
 #include <Ticker.h>
 #include <time.h>
+#pragma endregion
 // **************************************************
 
 // **************************************************
@@ -214,7 +216,17 @@ int initStrip(bool doStart = false, bool playDemo = true)
 	if (playDemo)
 	{
 		DEBUG_PRINT("Playing demo effect...");
-#ifdef COMET_DEMO
+		/*
+		for (int dot = 0; dot < PIXEL_COUNT; dot++)
+		{
+			leds[dot] = CHSV(random8(), 255, 255);
+			FastLED.show();
+			delay(10);
+			DEBUG_PRINT(".");
+		}
+		DEBUG_PRINTLN("DONE");
+		delay(500);
+		*/
 		CRGBPalette16 colorPalette = NeoGroup::GenerateRGBPalette(CommonColorPalettes.find("Rainbow")->second);
 		for (int dot = 0; dot < 256; dot++)
 		{
@@ -239,17 +251,6 @@ int initStrip(bool doStart = false, bool playDemo = true)
 			DEBUG_PRINT(".");
 		}
 		DEBUG_PRINTLN("DONE");
-#else
-		for (int dot = 0; dot < PIXEL_COUNT; dot++)
-		{
-			leds[dot] = CHSV(random8(), 255, 255);
-			FastLED.show();
-			delay(10);
-			DEBUG_PRINT(".");
-		}
-		DEBUG_PRINTLN("DONE");
-		delay(500);
-#endif
 
 		DEBUG_PRINTLN("Fading away demo effect.");
 		for (int fade = 0; fade < 20; fade++)
@@ -517,9 +518,10 @@ void updateGoalStats()
 	lockedGoalTriggers = true;
 	lockedGoalTriggersAt = millis();
 	gamePaused = true;
-#ifdef PAUSE_AFTER_GOAL
-	gamePaused = true;
-#endif
+	if (PAUSE_AFTER_GOAL)
+	{
+		gamePaused = true;
+	}
 	DEBUG_PRINTLN("Goal scored for team " + String(wasGoalForTeam + 1) + ", standing: " + String(goals[0]) + ":" + String(goals[1]) + ".");
 
 	wasGoal = false;
@@ -891,12 +893,10 @@ void setup()
 	// Attach ticker for game time
 	tickerGametime.attach(1, onTickerGametime);
 
-#ifdef i2cOLED
 	// Initialize OLED display
 	display.init();
 	display.flipScreenVertically();
 	drawDisplay();
-#endif
 
 	// Wire buttons and events (I2C or directly connected)
 	DEBUG_PRINTLN("PCF8574: setting bus speed to " + String(I2C_BUS_SPEED) + ".");
@@ -956,16 +956,11 @@ void setup()
 		DEBUG_PRINTLN("FastLED: Setting up group #" + String(grpNr));
 		//bool startFx = true;
 		bool startFx = grpNr != 0;
-#ifdef DO_NOT_START_FX_ON_INIT
-		startFx = false;
-#endif
 		SetColors(grpNr, grpNr == 0 ? defaultColPalAll : defaultColPal);
 		SetEffect(grpNr, grpNr == 0 ? defaultFxNrAll : defaultFxNr, startFx, grpNr == 0, grpNr == 2 ? direction::REVERSE : direction::FORWARD);
 	}
 
-#ifdef i2cOLED
 	drawDisplay();
-#endif
 }
 #pragma endregion
 
@@ -1036,11 +1031,7 @@ void loop()
 		}
 
 		bool isActiveMainGrp = (&(neoGroups.at(0)))->Active;
-#ifdef DEBUG_LOOP
-/*
-				DEBUG_PRINTLN("Loop: Main group active -> " + String(isActiveMainGrp));
-*/
-#endif
+		//DEBUG_PRINTLN("Loop: Main group active -> " + String(isActiveMainGrp));
 		bool ledsUpdated = false;
 		for (int grpNr = 0; grpNr < neoGroups.size(); grpNr++)
 		{
@@ -1048,31 +1039,23 @@ void loop()
 
 			if (isActiveMainGrp && grpNr != 0)
 			{
-#ifdef DEBUG_LOOP
-				DEBUG_PRINTLN("Loop: Skipping group #" + String(i));
-#endif
+				//DEBUG_PRINTLN("Loop: Skipping group #" + String(i));
 				continue; // Don't update other groups if main group (all LEDs) is active
 			}
 
-#ifdef DEBUG_LOOP
-/*
-			DEBUG_PRINTLN("Loop: Updating group " + String(i));
-*/
-#endif
+			//DEBUG_PRINTLN("Loop: Updating group " + String(i));
 			ledsUpdated |= neoGroup->Update();
 		}
 
 		if (ledsUpdated)
 		{
-#ifdef DEBUG_LOOP
-			DEBUG_PRINTLN("Loop: Refreshing LEDs.");
-#endif
+			//DEBUG_PRINTLN("Loop: Refreshing LEDs.");
 			FastLED.show();
 		}
 	}
 	else
 	{
-		//DEBUG_PRINTLN("Loop: LEDs not started, leaving loop.");
+		////DEBUG_PRINTLN("Loop: LEDs not started, leaving loop.");
 	}
 
 	// REQUIRED: allow processing of interrupts etc

@@ -4,7 +4,7 @@
 // **************************************************
 // Uncomment to enable printing debug messages.
 #define DEBUG_PRINTER Serial
-#ifdef DST_DEBUG
+#ifdef ENABLE_SERIAL_DEBUG
 #define DEBUG_PRINT(...)                  \
     {                                     \
         DEBUG_PRINTER.print(__VA_ARGS__); \
