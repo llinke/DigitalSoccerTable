@@ -315,7 +315,7 @@ class NeoGroup
 		{
 			if ((millis() - lastUpdate) > (FADEOUT_DURATION / FADEOUT_STEPS))
 			{
-			// DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: Fading out, " + String(fxFadeOut) + " steps remaing.");
+				DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: Fading out, " + String(fxFadeOut) + " steps remaing.");
 #ifdef PIXEL_USE_OFFSET
 				fadeToBlackBy(&leds[LedFirstNr], LedCount, (1024 / FADEOUT_STEPS));
 #else
@@ -350,8 +350,8 @@ class NeoGroup
 		int sinceLastUpdate = (millis() - lastUpdate);
 		if (sinceLastUpdate > updateInterval)
 		{
-			// DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: " + String(sinceLastUpdate) + "ms since last update, target interval: " + String(updateInterval) + "ms.");
-			// DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: Updating group.");
+			DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: " + String(sinceLastUpdate) + "ms since last update, target interval: " + String(updateInterval) + "ms.");
+			DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: Updating group.");
 			if (crossFadeColors)
 			{
 				// Cross-fade to new palette
@@ -372,15 +372,18 @@ class NeoGroup
 				lastUpdate = millis();
 				return false;
 			}
+			NextFxStep();
 			int timesToUpdate = sinceLastUpdate / updateInterval;
 			if (timesToUpdate > 1)
-				DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: skipping " + String(timesToUpdate - 1) + " steps to catch up target FPS " + String(fxFps) + ".");
-			for (int r = 0; r < (timesToUpdate - 1); r++)
 			{
-				if (Active)
-					NextFxStep();
-				else
-					break;
+				DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: skipping " + String(timesToUpdate - 1) + " steps to catch up target FPS " + String(fxFps) + ".");
+				for (int r = 1; r < timesToUpdate; r++)
+				{
+					if (Active)
+						NextFxStep();
+					else
+						break;
+				}
 			}
 			lastUpdate = millis();
 			return true; // LEDs updated
@@ -391,7 +394,7 @@ class NeoGroup
 
 	void NextFxStep(bool invert = false)
 	{
-		for (int s = 1; s < fxSpeed && fxStep < 255; s++)
+		for (int s = 0; s < fxSpeed; s++)
 		{
 			if (onlyOnce)
 			{
