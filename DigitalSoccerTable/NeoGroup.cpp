@@ -350,8 +350,8 @@ class NeoGroup
 		int sinceLastUpdate = (millis() - lastUpdate);
 		if (sinceLastUpdate > updateInterval)
 		{
-			DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: " + String(sinceLastUpdate) + "ms since last update, target interval: " + String(updateInterval) + "ms.");
-			DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: Updating group.");
+			// DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: " + String(sinceLastUpdate) + "ms since last update, target interval: " + String(updateInterval) + "ms.");
+			// DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: Updating group.");
 			if (crossFadeColors)
 			{
 				// Cross-fade to new palette
@@ -373,17 +373,12 @@ class NeoGroup
 				return false;
 			}
 			NextFxStep();
-			int timesToUpdate = sinceLastUpdate / updateInterval;
+			int timesToUpdate = constrain(sinceLastUpdate / updateInterval, 1, 8); // skip max 8 steps
 			if (timesToUpdate > 1)
 			{
 				DEBUG_PRINTLN("GRP[" + String(GroupID) + "].Update: skipping " + String(timesToUpdate - 1) + " steps to catch up target FPS " + String(fxFps) + ".");
-				for (int r = 1; r < timesToUpdate; r++)
-				{
-					if (Active)
-						NextFxStep();
-					else
-						break;
-				}
+				if (Active)
+					NextFxStep(timesToUpdate - 1);
 			}
 			lastUpdate = millis();
 			return true; // LEDs updated
@@ -392,55 +387,42 @@ class NeoGroup
 		return false; // LEDs not updated
 	}
 
-	void NextFxStep(bool invert = false)
+	void NextFxStep(int speed = 0)
 	{
-		for (int s = 0; s < fxSpeed; s++)
+		if (fxDirection == FORWARD)
 		{
-			if (onlyOnce)
-			{
-				DEBUG_PRINTLN("GRP[" + String(GroupID) + "].NextFxStep: direction " + fxDirection + ", current FX step " + String(fxStep) + ".");
-				if ((fxDirection == FORWARD && fxStep >= 255) ||
-					(fxDirection == REVERSE && fxStep <= 0))
-				{
-					DEBUG_PRINTLN("GRP[" + String(GroupID) + "].NextFxStep: Run only once, stopping at " + String(fxStep) + ".");
-					onlyOnce = false;
-					Stop();
-					return;
-				}
-			}
+			fxStep += speed > 0 ? speed : fxSpeed;
+		}
+		else // fxDirection == REVERSE
+		{
+			fxStep -= speed > 0 ? speed : fxSpeed;
+		}
 
-			if (fxDirection == FORWARD)
+		if (onlyOnce)
+		{
+			// DEBUG_PRINTLN("GRP[" + String(GroupID) + "].NextFxStep: " +
+			// 			  "direction " + fxDirection +
+			// 			  ", current FX step " + String(fxStep) +
+			// 			  ", speed " + String(speed > 0 ? speed : fxSpeed) + ".");
+			if ((fxDirection == FORWARD && fxStep >= 255) ||
+				(fxDirection == REVERSE && fxStep <= 0))
 			{
-				fxStep++;
-				if (fxStep > 255)
-				{
-					if (invert)
-					{
-						ReverseFxDirection();
-					}
-					else
-					{
-						fxStep = 0;
-					}
-				}
-			}
-			else // fxDirection == REVERSE
-			{
-				fxStep--;
-				if (fxStep < 0)
-				{
-					if (invert)
-					{
-						ReverseFxDirection();
-					}
-					else
-					{
-						fxStep = 255;
-					}
-				}
+				DEBUG_PRINTLN("GRP[" + String(GroupID) + "].NextFxStep: Run only once, stopping at " + String(fxStep) + ".");
+				onlyOnce = false;
+				Stop();
 			}
 		}
-		DEBUG_PRINTLN("GRP[" + String(GroupID) + "].NextFxStep: next step >> " + String(fxStep) + ".");
+
+		while (fxStep > 255)
+		{
+			fxStep -= 256;
+		}
+		while (fxStep < 0)
+		{
+			fxStep += 256;
+		}
+
+		// DEBUG_PRINTLN("GRP[" + String(GroupID) + "].NextFxStep: next step >> " + String(fxStep) + ".");
 	}
 
 	void ReverseFxDirection()

@@ -950,7 +950,7 @@ void updateGameTime(int decBy)
 	}
 
 	gameTimeProgress = (gameTimeRemain * 100) / gameTimeMax;
-	DEBUG_PRINTLN("Remaining time: " + String(gameTimeRemain) + ", in %: " + String(gameTimeProgress) + ", changed by " + String(decBy) + "sec.");
+	// DEBUG_PRINTLN("Remaining time: " + String(gameTimeRemain) + ", in %: " + String(gameTimeProgress) + ", changed by " + String(decBy) + "sec.");
 
 	// Require update of OLED display
 	updateOledRequired = true;
