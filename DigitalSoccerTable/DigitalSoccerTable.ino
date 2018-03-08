@@ -532,6 +532,7 @@ void SetEffect(int grpNr, int fxNr, bool startFx,
 		speed);
 	if (startFx)
 		startGroup(grpNr, onlyOnce);
+	DEBUG_PRINTLN("SetEffect ---------------------------------------------------");
 }
 
 void InitColorNames()
@@ -562,6 +563,7 @@ void SetColors(int grpNr, String palKey, bool crossFade = CROSSFADE_PALETTES, in
 	setGrpColors(grpNr, colors, true, true, crossFade);
 	DEBUG_PRINTLN("Dumping palette's colors...");
 	DumpPalette(colors);
+	DEBUG_PRINTLN("SetColors --------------------------------------------------");
 }
 #pragma endregion
 
@@ -711,13 +713,13 @@ void playGamePhaseGoal()
 				  true,
 				  currentGamePhaseTeamNr == 0 ? direction::FORWARD : direction::REVERSE,
 				  defaultGlitter,
-				  150,
+				  50,
 				  2);
 		SetEffect(2, fxGamePhaseGoal, true,
 				  true,
 				  currentGamePhaseTeamNr == 0 ? direction::REVERSE : direction::FORWARD,
 				  defaultGlitter,
-				  150,
+				  50,
 				  2);
 		currentGamePhaseStep++;
 	}
@@ -742,14 +744,14 @@ void playGamePhaseGoal()
 				  true,
 				  currentGamePhaseTeamNr == 0 ? direction::REVERSE : direction::FORWARD,
 				  defaultGlitter,
-				  100,
-				  4);
+				  75,
+				  1);
 		SetEffect(2, fxGamePhaseGoal2, true,
 				  true,
 				  currentGamePhaseTeamNr == 0 ? direction::FORWARD : direction::REVERSE,
 				  defaultGlitter,
-				  100,
-				  4);
+				  75,
+				  1);
 		currentGamePhaseStep++;
 	}
 	// -- <[ PLAY FX ]> ----------

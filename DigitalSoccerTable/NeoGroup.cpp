@@ -130,7 +130,7 @@ class NeoGroup
 		int speed = 1)
 	{
 		DEBUG_PRINTLN("GRP[" + String(GroupID) + "].CfgFX: Stopping effect execution.");
-		Stop(true);
+		Stop(false);
 
 		DEBUG_PRINTLN("GRP[" + String(GroupID) + "].CfgFX: Configuring effect parameters.");
 		ChangeFps(fps);
@@ -224,7 +224,7 @@ class NeoGroup
 			currentColors.clear();
 		}
 
-		DEBUG_PRINT("GRP[" + String(GroupID) + "].CfgColor: Adding " + String(colors.size()) + " CRGB colors to internal list.");
+		DEBUG_PRINTLN("GRP[" + String(GroupID) + "].CfgColor: Adding " + String(colors.size()) + " CRGB colors to internal list.");
 		for (CRGB color : colors)
 		{
 			currentColors.push_back(color);
@@ -567,30 +567,22 @@ class NeoGroup
 	void FxFill()
 	{
 #ifdef PIXEL_USE_OFFSET
-	// fadeToBlackBy(&leds[LedFirstNr], LedCount, 16);
+	// fadeToBlackBy(&leds[LedFirstNr], LedCount, 16 * fxSpeed);
 #else
-	// fadeToBlackBy(LedFirst, LedCount, 16);
+	// fadeToBlackBy(LedFirst, LedCount, 16 * fxSpeed);
 #endif
-		CRGB newColor = (fxDirection == REVERSE)
-							? ColorFromPalette(colorPalette, 255 - fxStep)
-							: ColorFromPalette(colorPalette, fxStep);
+		int fxStep2 = (fxDirection == REVERSE) ? 255 - fxStep : fxStep;
+		// uint8_t bri = map8(GetEasedFxStep(fxStep2), 32, 255);
+		uint8_t bri = map8(scale8(fxStep2, fxStep2), 32, 255);
+		//CRGB newColor = ColorFromPalette(colorPalette, fxStep2, bri);
+		CRGB newColor = ColorFromPalette(colorPalette, fxStep2, bri);
 		//int variant = LedCount < 64 ? (LedCount / 4) : (LedCount / 8);
-		if (fxDirection == REVERSE)
-		{
-			uint8_t pos = GetEasedFxStep(255 - fxStep); // + random(0 - variant, 0 + variant);
-			int ledAmount = scale8(LedCount, pos);
-			int ledPos = LedCount - ledAmount;
-			if (ledAmount > 0)
-				FillPixels(ledPos, ledAmount, newColor, fxMirror, false);
-		}
-		else
-		{
-			uint8_t pos = GetEasedFxStep(fxStep); // + random(0 - variant, 0 + variant);
-			int ledAmount = scale8(LedCount, pos);
-			int ledPos = 0;
-			if (ledAmount > 0)
-				FillPixels(ledPos, ledAmount, newColor, fxMirror, false);
-		}
+
+		uint8_t pos = GetEasedFxStep(fxStep2); // + random(0 - variant, 0 + variant);
+		int ledAmount = scale8(LedCount, pos);
+		int ledPos = (fxDirection == REVERSE) ? LedCount - ledAmount : 0;
+		if (ledAmount > 0)
+			FillPixels(ledPos, ledAmount, newColor, fxMirror, false);
 
 		NextFxStep();
 	}
@@ -648,9 +640,9 @@ class NeoGroup
 	void FxConfetti()
 	{
 #ifdef PIXEL_USE_OFFSET
-		fadeToBlackBy(&leds[LedFirstNr], LedCount, 16);
+		fadeToBlackBy(&leds[LedFirstNr], LedCount, 16 * fxSpeed);
 #else
-		fadeToBlackBy(LedFirst, LedCount, 16);
+		fadeToBlackBy(LedFirst, LedCount, 16 * fxSpeed);
 #endif
 		int pos = random16(LedCount);
 		SetPixel(pos, ColorFromPalette(colorPalette, fxStep + random8(64)), MIRROR0, false); //true);
@@ -660,16 +652,18 @@ class NeoGroup
 	void FxComet()
 	{
 #ifdef PIXEL_USE_OFFSET
-		fadeToBlackBy(&leds[LedFirstNr], LedCount, 16);
+		fadeToBlackBy(&leds[LedFirstNr], LedCount, 16 * fxSpeed);
 #else
-		fadeToBlackBy(LedFirst, LedCount, 16);
+		fadeToBlackBy(LedFirst, LedCount, 16 * fxSpeed);
 #endif
 		bool isReverse = fxDirection == direction::REVERSE;
 		int fxStep2 = isReverse ? 255 - fxStep : fxStep;
-		int variant = LedCount < 64 ? (LedCount / 4) : (LedCount / 8);
+		//int variant = LedCount < 64 ? (LedCount / 4) : (LedCount / 8);
+		int variant = LedCount / 8;
 		int pos = GetEasedFxStep(fxStep2);
 		pos = constrain(pos + random(0 - variant, 0 + variant), 0, 255);
-		pos = lerp8by8(0, LedCount, pos); //(pos * LedCount) / 255;
+		//pos = lerp8by8(0, LedCount, pos);
+		pos = map8(pos, 0, LedCount);
 		pos = constrain(pos, 0, LedCount);
 		if (isReverse)
 			pos = LedCount - pos;

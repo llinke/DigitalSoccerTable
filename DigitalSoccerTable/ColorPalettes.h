@@ -6,10 +6,13 @@
 #include <map>
 
 #define DUMP_PALETTE
+
 #define BOOST_SAT_MIN 160
 #define BOOST_SAT_INCR 64
 #define BOOST_VAL_MIN 128
 #define BOOST_VAL_INCR 64
+
+#define HUE_VARIANT 16
 
 // Helper macro
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
@@ -35,57 +38,6 @@ static std::map<String, std::vector<CRGB>> TeamColorPalettes[] =
             {"Goal2", {}},
             {"Celebration", {}},
         }};
-static void CreateTeamColorPalettes(int teamNr)
-{
-    DEBUG_PRINTLN("Initializing team " + String(teamNr + 1) + "'s color palettes...");
-    TeamColorPalettes[teamNr]["Idle"] =
-        {
-            CRGB::Black,
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 128)),
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
-            CRGB::Gray,
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 128))};
-    TeamColorPalettes[teamNr]["KickOff"] =
-        {
-            CRGB::Black,
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
-            CRGB::Black,
-            CRGB(CHSV(TeamHueValues[teamNr], 128, 255)),
-            CRGB::Black,
-            CRGB(CHSV(TeamHueValues[teamNr], 64, 255)),
-            CRGB::Black,
-            CRGB(CHSV(TeamHueValues[teamNr], 64, 255)),
-            CRGB(CHSV(TeamHueValues[teamNr], 128, 255)),
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
-            CRGB::Black};
-    TeamColorPalettes[teamNr]["InGame"] =
-        {
-            CRGB::Black,
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 128)),
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
-            CRGB::Gray,
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 128))};
-    TeamColorPalettes[teamNr]["Goal"] =
-        {
-            CRGB::Black,
-            CRGB::White,
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
-    TeamColorPalettes[teamNr]["Goal2"] =
-        {
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255))}; /*,
-            CRGB::White,
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
-            CRGB::Black};*/
-    TeamColorPalettes[teamNr]["Celebration"] =
-        {
-            CRGB::Black,
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
-            CRGB::White,
-            CRGB(CHSV(TeamHueValues[teamNr], 255, 127))};
-}
 
 #pragma region Helper Methods
 void PrintHex8(uint8_t data) // prints 8-bit data in hex with leading zeroes
@@ -186,13 +138,158 @@ void AddColorPalette(
         CommonColorPalettes[palName] = palColorsBoosted;
     }
 }
+
+std::vector<CRGB> SimplePaletteFromColor(
+    CRGB baseCol, int variants = 1, uint8_t variantBy = 32)
+{
+    std::vector<CRGB> newPal;
+    CRGB rgb = CRGB(baseCol);
+    newPal.push_back(rgb);
+    for (int i = 0; i < variants; i++)
+    {
+        CHSV hsv = rgb2hsv_approximate(rgb);
+        hsv.h += 32;
+        rgb = CRGB(hsv);
+        newPal.push_back(rgb);
+    }
+    return newPal;
+}
+
+std::vector<CRGB> AdjacentPaletteFromHue(
+    uint8_t hue, bool addCompl = false, uint8_t distance = 30)
+{
+    uint8_t dist8 = (255 * distance) / 360;
+    std::vector<CRGB> newPal;
+    CHSV hsvBase = CHSV(hue, 255, 255);
+    newPal.push_back(CRGB(hsvBase)); // base color
+    CHSV hsvNew = CHSV(hue + dist8, 255, 255);
+    newPal.push_back(CRGB(hsvNew)); // right adjacent
+    if (addCompl)
+    {
+        hsvNew = CHSV(hue - 128, 255, 255);
+        newPal.push_back(CRGB(hsvNew)); // complementary
+    }
+    else
+    {
+        newPal.push_back(CRGB(hsvBase)); // base color
+    }
+    hsvNew = CHSV(hue - dist8, 255, 255);
+    newPal.push_back(CRGB(hsvNew)); // left adjacent
+    return newPal;
+}
+
+std::vector<CRGB> TriadPaletteFromHue(
+    uint8_t hue, bool addCompl = false, uint8_t distance = 30)
+{
+    return AdjacentPaletteFromHue(hue, distance + 90, addCompl);
+}
+
+std::vector<CRGB> AnalogousPaletteFromHue(
+    uint8_t hue, bool addCompl = false, uint8_t distance = 15)
+{
+    uint8_t dist8 = (255 * distance) / 360;
+    std::vector<CRGB> newPal;
+    CHSV hsvBase = CHSV(hue, 255, 255);
+    newPal.push_back(CRGB(hsvBase)); // base color
+    CHSV hsvNew = CHSV(hue - dist8, 255, 255);
+    newPal.push_back(CRGB(hsvNew)); // first left analogous
+    hsvNew = CHSV(hue - 2 * dist8, 255, 255);
+    newPal.push_back(CRGB(hsvNew)); // second left analogous
+    if (addCompl)
+    {
+        hsvNew = CHSV(hue - 128, 255, 255);
+        newPal.push_back(CRGB(hsvNew)); // complementary
+    }
+    else
+    {
+        newPal.push_back(CRGB(hsvBase)); // base color
+    }
+    hsvNew = CHSV(hue + 2 * dist8, 255, 255);
+    newPal.push_back(CRGB(hsvNew)); // second right analogous
+    hsvNew = CHSV(hue + dist8, 255, 255);
+    newPal.push_back(CRGB(hsvNew)); // first right analogous
+    if (addCompl)
+    {
+        // stronger base color
+        newPal.push_back(CRGB(hsvBase)); // base color
+    }
+    return newPal;
+}
+
 #pragma endregion
+
+static void CreateTeamColorPalettes(int teamNr)
+{
+    DEBUG_PRINTLN("Initializing team " + String(teamNr + 1) + "'s color palettes...");
+    TeamColorPalettes[teamNr]["Idle"] = //AnalogousPaletteFromHue(TeamHueValues[teamNr]);
+        {
+            0x000000, // Black
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr] - HUE_VARIANT, 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            0x808080, // Medium Gray
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr] + HUE_VARIANT, 255, 128)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
+    TeamColorPalettes[teamNr]["KickOff"] =
+        {
+            0x000000, // Black
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            0x000000, // Black
+            CRGB(CHSV(TeamHueValues[teamNr], 128, 255)),
+            0x000000, // Black
+            CRGB(CHSV(TeamHueValues[teamNr], 64, 255)),
+            0x000000, // Black
+            CRGB(CHSV(TeamHueValues[teamNr], 64, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 128, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            0x000000};
+    TeamColorPalettes[teamNr]["InGame"] =
+        {
+            0x000000, // Black
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr] - HUE_VARIANT, 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            0x808080, // Medium Gray
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            0x808080, // Medium Gray
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr] + HUE_VARIANT, 255, 128)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
+    TeamColorPalettes[teamNr]["Goal"] =
+        {
+            0x000000, // Black
+            0xFFFFFF, // White
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
+    TeamColorPalettes[teamNr]["Goal2"] =
+        {
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255 + HUE_VARIANT, 255)),
+            0x808080, // Medium Gray
+            CRGB(CHSV(TeamHueValues[teamNr], 255 - HUE_VARIANT, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
+    TeamColorPalettes[teamNr]["Celebration"] =
+        {
+            // 0x000000, // Black
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            0x808080, // Medium Gray
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr] + HUE_VARIANT, 255, 255)),
+            0x404040, // Dark Gray
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            0x404040, // Dark Gray
+            CRGB(CHSV(TeamHueValues[teamNr] - HUE_VARIANT, 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            0x808080, // Medium Gray
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
+}
 
 void InitColorPalettes()
 {
     DEBUG_PRINTLN("Initializing common color palettes...");
     AddColorPalette("Rainbow", {CRGB(0xFF0000), CRGB(0xD52A00), CRGB(0xAB5500), CRGB(0xAB7F00), CRGB(0xABAB00), CRGB(0x56D500), CRGB(0x00FF00), CRGB(0x00D52A), CRGB(0x00AB55), CRGB(0x0056AA), CRGB(0x0000FF), CRGB(0x2A00D5), CRGB(0x5500AB), CRGB(0x7F0081), CRGB(0xAB0055), CRGB(0xD5002B)}, false);
-    //AddColorPalette("Idle", {CRGB::Black, CRGB::Gray, CRGB(CHSV(TeamHueValues[0], 255, 255)), CRGB::Gray, CRGB(CHSV(TeamHueValues[1], 255, 255)), CRGB::Gray}, false);
 
     CreateTeamColorPalettes(0);
     CreateTeamColorPalettes(1);

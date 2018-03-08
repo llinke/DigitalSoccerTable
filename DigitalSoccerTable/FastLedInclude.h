@@ -14,10 +14,10 @@ FASTLED_USING_NAMESPACE
 #define PIXEL_PIN D3
 #define PIXEL_TYPE NEOPIXEL
 
-#define PIXEL_COUNT 40 // 120
+#define PIXEL_COUNT 120 // 40 // 120
 //#define PIXEL_USE_OFFSET
 #ifdef PIXEL_USE_OFFSET
-#define PIXEL_OFFSET 10
+#define PIXEL_OFFSET (PIXEL_COUNT / 4)
 #endif
 
 // Static size:
