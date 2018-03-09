@@ -236,12 +236,14 @@ static void CreateTeamColorPalettes(int teamNr)
             0x000000, // Black
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             0x000000, // Black
-            CRGB(CHSV(TeamHueValues[teamNr], 128, 255)),
             0x000000, // Black
-            CRGB(CHSV(TeamHueValues[teamNr], 64, 255)),
             0x000000, // Black
-            CRGB(CHSV(TeamHueValues[teamNr], 64, 255)),
-            CRGB(CHSV(TeamHueValues[teamNr], 128, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            0x000000, // Black
+            0x000000, // Black
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            0x000000, // Black
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             0x000000};

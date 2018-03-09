@@ -130,7 +130,7 @@ class NeoGroup
 		int speed = 1)
 	{
 		DEBUG_PRINTLN("GRP[" + String(GroupID) + "].CfgFX: Stopping effect execution.");
-		Stop(false);
+		Stop(true);
 
 		DEBUG_PRINTLN("GRP[" + String(GroupID) + "].CfgFX: Configuring effect parameters.");
 		ChangeFps(fps);

@@ -276,8 +276,8 @@ int initStrip(bool doStart = false, bool playDemo = true)
 			fadeToBlackBy(leds, PIXEL_COUNT, 8);
 			int variant = (PIXEL_COUNT / 16);
 			int pos = ease8InOutQuad(dot) + random(0 - variant, 0 + variant);
-			pos = (pos * PIXEL_COUNT) / 256;
-			pos = constrain(pos, 0, PIXEL_COUNT);
+			int pos1 = map8(pos, 0, PIXEL_COUNT / 2);
+			int pos2 = map8(pos, 0, PIXEL_COUNT / 2) + PIXEL_COUNT / 2;
 			//DEBUG_PRINT("Setting pixel #");
 			//DEBUG_PRINTLN(pos);
 			int bright = random(64, 255);
@@ -287,7 +287,8 @@ int initStrip(bool doStart = false, bool playDemo = true)
 			nblend(leds[pos], color, 128);
 			*/
 			uint8_t colpos = dot + random8(16) - 8;
-			nblend(leds[pos], ColorFromPalette(colorPalette, colpos, bright), 128);
+			nblend(leds[pos1], ColorFromPalette(colorPalette, colpos, bright), 128);
+			nblend(leds[pos2], ColorFromPalette(colorPalette, colpos, bright), 128);
 
 			FastLED.show();
 			delay(10);
@@ -410,7 +411,7 @@ int setGrpEffect(
 	int speed = 1)
 {
 	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
-	neoGroup->Stop();
+	neoGroup->Stop(true);
 
 	//int fxGlitter = amountglitter <= 0 ? neoGroup->GetGlitter() : amountglitter;
 	int fxGlitter = amountglitter <= 0 ? defaultGlitter : amountglitter;
@@ -442,8 +443,8 @@ int setGrpColors(
 	return result;
 }
 
-void SetEffect(int grpNr, int fxNr, bool startFx,
-			   bool onlyOnce,
+void SetEffect(int grpNr, int fxNr,
+			   bool startFx, bool onlyOnce,
 			   direction fxDirection = direction::FORWARD,
 			   int amountGlitter = -1,
 			   int targetFps = 0,
@@ -571,9 +572,8 @@ void SetColors(int grpNr, String palKey, bool crossFade = CROSSFADE_PALETTES, in
 // *** Game Phases
 // **************************************************
 #pragma region Game Phases
-bool isReadyForGamePhase(int teamNr, bool stopNow = false)
+bool isReadyForGamePhase(int grpNr, bool stopNow = false)
 {
-	int grpNr = teamNr + 1;
 	if (isGroupActive(grpNr))
 	{
 		stopGroup(grpNr, stopNow);
@@ -587,9 +587,8 @@ bool isReadyForGamePhase(int teamNr, bool stopNow = false)
 	return true;
 }
 
-bool isRunningOnce(int teamNr)
+bool isRunningOnce(int grpNr)
 {
-	int grpNr = teamNr + 1;
 	NeoGroup *neoGroup = &(neoGroups.at(grpNr));
 	return neoGroup->IsRunningOnce();
 }
@@ -611,7 +610,9 @@ void playGamePhaseIdle()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
-		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+		bool isReady1 = isReadyForGamePhase(1);
+		bool isReady2 = isReadyForGamePhase(2);
+		if (isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -635,7 +636,9 @@ void playGamePhaseRunning()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
-		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+		bool isReady1 = isReadyForGamePhase(1);
+		bool isReady2 = isReadyForGamePhase(2);
+		if (isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -659,7 +662,9 @@ void playGamePhasePaused()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
-		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+		bool isReady1 = isReadyForGamePhase(1);
+		bool isReady2 = isReadyForGamePhase(2);
+		if (isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -699,7 +704,9 @@ void playGamePhaseGoal()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
-		if (isReadyForGamePhase(0, true) && isReadyForGamePhase(1, true))
+		bool isReady1 = isReadyForGamePhase(1, true);
+		bool isReady2 = isReadyForGamePhase(2, true);
+		if (isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -709,14 +716,14 @@ void playGamePhaseGoal()
 					  "Starting FX for " + String(currentGamePhaseTeamNr) + ".");
 		SetColors(1, "Goal", false, currentGamePhaseTeamNr);
 		SetColors(2, "Goal", false, currentGamePhaseTeamNr);
-		SetEffect(1, fxGamePhaseGoal, true,
-				  true,
+		SetEffect(1, fxGamePhaseGoal,
+				  true, true,
 				  currentGamePhaseTeamNr == 0 ? direction::FORWARD : direction::REVERSE,
 				  defaultGlitter,
 				  50,
 				  2);
-		SetEffect(2, fxGamePhaseGoal, true,
-				  true,
+		SetEffect(2, fxGamePhaseGoal,
+				  true, true,
 				  currentGamePhaseTeamNr == 0 ? direction::REVERSE : direction::FORWARD,
 				  defaultGlitter,
 				  50,
@@ -728,7 +735,9 @@ void playGamePhaseGoal()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for runonce-FX to finish.");
-		if (!isRunningOnce(0) && !isRunningOnce(1))
+		bool isRunningOnce1 = isRunningOnce(1);
+		bool isRunningOnce2 = isRunningOnce(2);
+		if (!isRunningOnce1 && !isRunningOnce2)
 		{
 			currentGamePhaseStep++;
 		}
@@ -740,18 +749,18 @@ void playGamePhaseGoal()
 					  "Starting FX for " + String(currentGamePhaseTeamNr) + ".");
 		SetColors(1, "Goal2", false, currentGamePhaseTeamNr);
 		SetColors(2, "Goal2", false, currentGamePhaseTeamNr);
-		SetEffect(1, fxGamePhaseGoal2, true,
-				  true,
+		SetEffect(1, fxGamePhaseGoal2,
+				  true, true,
 				  currentGamePhaseTeamNr == 0 ? direction::REVERSE : direction::FORWARD,
 				  defaultGlitter,
 				  75,
-				  1);
-		SetEffect(2, fxGamePhaseGoal2, true,
-				  true,
+				  2);
+		SetEffect(2, fxGamePhaseGoal2,
+				  true, true,
 				  currentGamePhaseTeamNr == 0 ? direction::FORWARD : direction::REVERSE,
 				  defaultGlitter,
 				  75,
-				  1);
+				  2);
 		currentGamePhaseStep++;
 	}
 	// -- <[ PLAY FX ]> ----------
@@ -759,7 +768,9 @@ void playGamePhaseGoal()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for runonce-FX to finish.");
-		if (!isRunningOnce(0) && !isRunningOnce(1))
+		bool isRunningOnce1 = isRunningOnce(1);
+		bool isRunningOnce2 = isRunningOnce(2);
+		if (!isRunningOnce1 && !isRunningOnce2)
 		{
 			currentGamePhaseStep++;
 		}
@@ -769,7 +780,9 @@ void playGamePhaseGoal()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
-		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+		bool isReady1 = isReadyForGamePhase(1);
+		bool isReady2 = isReadyForGamePhase(2);
+		if (isReady1 && isReady2)
 		{
 			currentGamePhaseStep++;
 			// Switch to game phase celebration
@@ -788,7 +801,9 @@ void playGamePhaseCelebration()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
-		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+		bool isReady1 = isReadyForGamePhase(1);
+		bool isReady2 = isReadyForGamePhase(2);
+		if (isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -812,7 +827,9 @@ void playGamePhaseGameOver()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
-		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+		bool isReady1 = isReadyForGamePhase(1);
+		bool isReady2 = isReadyForGamePhase(2);
+		if (isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -822,10 +839,12 @@ void playGamePhaseGameOver()
 					  "Starting FX.");
 		SetColors(1, "Goal", true);
 		SetColors(2, "Goal", true);
-		SetEffect(1, fxGamePhaseOver, true,
-				  true, direction::FORWARD);
-		SetEffect(2, fxGamePhaseOver, true,
-				  true, direction::FORWARD);
+		SetEffect(1, fxGamePhaseOver,
+				  true, true,
+				  direction::FORWARD);
+		SetEffect(2, fxGamePhaseOver,
+				  true, true,
+				  direction::FORWARD);
 		currentGamePhaseStep++;
 	}
 	// -- <[ PLAY FX ]> ----------
@@ -833,7 +852,9 @@ void playGamePhaseGameOver()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for runonce-FX to finish.");
-		if (!isRunningOnce(0) && !isRunningOnce(1))
+		bool isRunningOnce1 = isRunningOnce(1);
+		bool isRunningOnce2 = isRunningOnce(2);
+		if (!isRunningOnce1 && !isRunningOnce2)
 		{
 			currentGamePhaseStep++;
 		}
@@ -843,7 +864,9 @@ void playGamePhaseGameOver()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
-		if (isReadyForGamePhase(0) && isReadyForGamePhase(1))
+		bool isReady1 = isReadyForGamePhase(1);
+		bool isReady2 = isReadyForGamePhase(2);
+		if (isReady1 && isReady2)
 		{
 			currentGamePhaseStep++;
 
