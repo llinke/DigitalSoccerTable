@@ -953,12 +953,15 @@ void updateGoalStats()
 
 void updateGameTime(int decBy)
 {
-	if (!gameRunning)
-		return;
-	if (gamePaused)
-		return;
-	if (lockedGoalTriggers)
-		return;
+	if (decBy != 0) // ignore locks if time was not changed
+	{
+		if (!gameRunning)
+			return;
+		if (gamePaused)
+			return;
+		if (lockedGoalTriggers)
+			return;
+	}
 
 	gameTimeChanged = false;
 
