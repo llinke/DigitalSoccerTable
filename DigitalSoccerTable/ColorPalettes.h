@@ -277,13 +277,18 @@ static void CreateTeamColorPalettes(int teamNr)
             // 0x000000, // Black
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             0x808080, // Medium Gray
+            CRGB(CHSV(TeamHueValues[teamNr] + HUE_VARIANT, 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             CRGB(CHSV(TeamHueValues[teamNr] + HUE_VARIANT, 255, 255)),
             0x404040, // Dark Gray
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
             0x404040, // Dark Gray
             CRGB(CHSV(TeamHueValues[teamNr] - HUE_VARIANT, 255, 255)),
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr], 255, 255)),
+            CRGB(CHSV(TeamHueValues[teamNr] - HUE_VARIANT, 255, 255)),
             0x808080, // Medium Gray
             CRGB(CHSV(TeamHueValues[teamNr], 255, 255))};
 }

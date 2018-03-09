@@ -275,7 +275,8 @@ int initStrip(bool doStart = false, bool playDemo = true)
 		{
 			fadeToBlackBy(leds, PIXEL_COUNT, 8);
 			int variant = (PIXEL_COUNT / 16);
-			int pos = ease8InOutQuad(dot) + random(0 - variant, 0 + variant);
+			//int pos = ease8InOutQuad(dot) + random(0 - variant, 0 + variant);
+			int pos = quadwave8(dot) + random(0 - variant, 0 + variant);
 			int pos1 = map8(pos, 0, PIXEL_COUNT / 2);
 			int pos2 = map8(pos, 0, PIXEL_COUNT / 2) + PIXEL_COUNT / 2;
 			//DEBUG_PRINT("Setting pixel #");
@@ -291,7 +292,7 @@ int initStrip(bool doStart = false, bool playDemo = true)
 			nblend(leds[pos2], ColorFromPalette(colorPalette, colpos, bright), 128);
 
 			FastLED.show();
-			delay(10);
+			delay(5);
 			DEBUG_PRINT(".");
 		}
 		DEBUG_PRINTLN("DONE");
