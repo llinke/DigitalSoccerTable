@@ -16,8 +16,13 @@ FASTLED_USING_NAMESPACE
 
 #define PIXEL_COUNT 124
 #define PIXEL_USE_OFFSET
+#define PIXEL_OFFSET_ZERO
 #ifdef PIXEL_USE_OFFSET
+#ifdef PIXEL_OFFSET_ZERO
+#define PIXEL_OFFSET 0
+#else
 #define PIXEL_OFFSET (PIXEL_COUNT / 4)
+#endif
 #endif
 
 // Static size:

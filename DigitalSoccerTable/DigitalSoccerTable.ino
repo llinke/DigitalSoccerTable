@@ -316,7 +316,15 @@ int initStrip(bool doStart = false, bool playDemo = true)
 	DEBUG_PRINTLN("Adding special groups.");
 	neoGroups.clear();
 	// Group 0: all LEDs
+#ifdef PIXEL_USE_OFFSET
+#ifdef PIXEL_OFFSET_ZERO
+	addGroup("All LEDs' group", 0, PIXEL_COUNT, (PIXEL_COUNT / 4));
+#else
 	addGroup("All LEDs' group", 0, PIXEL_COUNT, 0);
+#endif
+#else
+	addGroup("All LEDs' group", 0, PIXEL_COUNT, 0);
+#endif
 	addGroup("Team 1 group", 0, PIXEL_COUNT / 2, 0);
 	addGroup("Team 2 group", PIXEL_COUNT / 2, PIXEL_COUNT / 2, 0);
 
@@ -496,23 +504,26 @@ void SetEffect(int grpNr, int fxNr,
 		fxPattern = pattern::COMET;
 		fxWave = wave::EASEINOUT;
 		// fxWave = wave::SINUS;
-		fxFps *= 3;					// faster FPS looks better
-		fxMirror = mirror::MIRROR0; //mirror::MIRROR2;
+		fxFps *= 3; // faster FPS looks better
+		// fxMirror = mirror::MIRROR0;
+		fxMirror = mirror::MIRROR2;
 		break;
 	case fxNrOrbit:
 		fxPatternName = "Orbit";
 		fxPattern = pattern::COMET;
 		// fxWave = wave::EASEINOUT;
 		fxWave = wave::SINUS;
-		fxFps *= 1.5;				// faster FPS looks better
-		fxMirror = mirror::MIRROR0; //mirror::MIRROR2;
+		fxFps *= 1.5; // faster FPS looks better
+		// fxMirror = mirror::MIRROR0;
+		fxMirror = mirror::MIRROR2;
 		break;
 	case fxNrFill:
 		fxPatternName = "Fill";
 		fxPattern = pattern::FILL;
 		fxWave = wave::EASEINOUT;
-		fxFps *= 1.5;				// faster FPS looks better
-		fxMirror = mirror::MIRROR0; //mirror::MIRROR2;
+		fxFps *= 1.5; // faster FPS looks better
+		// fxMirror = mirror::MIRROR0;
+		fxMirror = mirror::MIRROR2;
 		break;
 	default:
 		fxPatternName = "Static";
@@ -542,14 +553,14 @@ void InitColorNames()
 	InitColorPalettes();
 }
 
-void SetColors(int grpNr, String palKey, bool crossFade = CROSSFADE_PALETTES, int teamNr = -1)
+void SetColors(int grpNr, String palKey, bool crossFade = CROSSFADE_PALETTES, int teamNr = -1, bool useTeamPalForGrp0 = true)
 {
 	DEBUG_PRINTLN("SetColors --------------------------------------------------");
 	DEBUG_PRINTLN("Col: Configuring LED colors #" + String(palKey) + " for group #" + String(grpNr));
 
 	DEBUG_PRINT("Col: Changing color palette to '" + String(palKey) + "' ");
 	std::vector<CRGB> colors = {};
-	if (grpNr == 0)
+	if (grpNr == 0 && !useTeamPalForGrp0)
 	{
 		DEBUG_PRINTLN("of CommonColorPalettes.");
 		if (CommonColorPalettes.find(palKey) != CommonColorPalettes.end())
@@ -611,9 +622,10 @@ void playGamePhaseIdle()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
+		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
-		if (isReady1 && isReady2)
+		if (isReady0 && isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -637,9 +649,10 @@ void playGamePhaseRunning()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
+		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
-		if (isReady1 && isReady2)
+		if (isReady0 && isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -663,9 +676,10 @@ void playGamePhasePaused()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
+		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
-		if (isReady1 && isReady2)
+		if (isReady0 && isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -705,9 +719,10 @@ void playGamePhaseGoal()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
+		bool isReady0 = isReadyForGamePhase(0, true);
 		bool isReady1 = isReadyForGamePhase(1, true);
 		bool isReady2 = isReadyForGamePhase(2, true);
-		if (isReady1 && isReady2)
+		if (isReady0 && isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -715,6 +730,7 @@ void playGamePhaseGoal()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "Starting FX for " + String(currentGamePhaseTeamNr) + ".");
+		/*
 		SetColors(1, "Goal", false, currentGamePhaseTeamNr);
 		SetColors(2, "Goal", false, currentGamePhaseTeamNr);
 		SetEffect(1, fxGamePhaseGoal,
@@ -729,6 +745,14 @@ void playGamePhaseGoal()
 				  defaultGlitter,
 				  50,
 				  2);
+		*/
+		SetColors(0, "Goal", false, currentGamePhaseTeamNr, true);
+		SetEffect(0, fxGamePhaseGoal,
+				  true, true,
+				  currentGamePhaseTeamNr == 0 ? direction::FORWARD : direction::REVERSE,
+				  defaultGlitter,
+				  50,
+				  2);
 		currentGamePhaseStep++;
 	}
 	// -- <[ PLAY FX ]> ----------
@@ -736,9 +760,16 @@ void playGamePhaseGoal()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for runonce-FX to finish.");
+		/*
 		bool isRunningOnce1 = isRunningOnce(1);
 		bool isRunningOnce2 = isRunningOnce(2);
 		if (!isRunningOnce1 && !isRunningOnce2)
+		{
+			currentGamePhaseStep++;
+		}
+		*/
+		bool isRunningOnce0 = isRunningOnce(0);
+		if (!isRunningOnce0)
 		{
 			currentGamePhaseStep++;
 		}
@@ -748,6 +779,7 @@ void playGamePhaseGoal()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "Starting FX for " + String(currentGamePhaseTeamNr) + ".");
+		/*
 		SetColors(1, "Goal2", false, currentGamePhaseTeamNr);
 		SetColors(2, "Goal2", false, currentGamePhaseTeamNr);
 		SetEffect(1, fxGamePhaseGoal2,
@@ -762,6 +794,14 @@ void playGamePhaseGoal()
 				  defaultGlitter,
 				  75,
 				  2);
+		*/
+		SetColors(0, "Goal2", false, currentGamePhaseTeamNr, true);
+		SetEffect(0, fxGamePhaseGoal2,
+				  true, true,
+				  currentGamePhaseTeamNr == 0 ? direction::REVERSE : direction::FORWARD,
+				  defaultGlitter,
+				  75,
+				  2);
 		currentGamePhaseStep++;
 	}
 	// -- <[ PLAY FX ]> ----------
@@ -769,9 +809,16 @@ void playGamePhaseGoal()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for runonce-FX to finish.");
+		/*
 		bool isRunningOnce1 = isRunningOnce(1);
 		bool isRunningOnce2 = isRunningOnce(2);
 		if (!isRunningOnce1 && !isRunningOnce2)
+		{
+			currentGamePhaseStep++;
+		}
+		*/
+		bool isRunningOnce0 = isRunningOnce(0);
+		if (!isRunningOnce0)
 		{
 			currentGamePhaseStep++;
 		}
@@ -781,9 +828,11 @@ void playGamePhaseGoal()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
+		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
-		if (isReady1 && isReady2)
+		if (isReady0 && isReady1 && isReady2)
+			currentGamePhaseStep++;
 		{
 			currentGamePhaseStep++;
 			// Switch to game phase celebration
@@ -802,9 +851,10 @@ void playGamePhaseCelebration()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
+		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
-		if (isReady1 && isReady2)
+		if (isReady0 && isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -812,10 +862,14 @@ void playGamePhaseCelebration()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "Starting FX for " + String(currentGamePhaseTeamNr) + ".");
+		/*
 		SetColors(1, "Celebration", true, currentGamePhaseTeamNr);
 		SetColors(2, "Celebration", true, currentGamePhaseTeamNr);
 		SetEffect(1, fxGamePhaseCelebration, true, false, direction::FORWARD, defaultGlitterCelebration);
 		SetEffect(2, fxGamePhaseCelebration, true, false, direction::FORWARD, defaultGlitterCelebration);
+		*/
+		SetColors(0, "Celebration", true, currentGamePhaseTeamNr, true);
+		SetEffect(0, fxGamePhaseCelebration, true, false, direction::FORWARD, defaultGlitterCelebration);
 		currentGamePhaseStep++;
 	}
 	// Nothing more to do :-)
@@ -828,9 +882,10 @@ void playGamePhaseGameOver()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
+		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
-		if (isReady1 && isReady2)
+		if (isReady0 && isReady1 && isReady2)
 			currentGamePhaseStep++;
 	}
 	// -- <[ START FX ]> ----------
@@ -865,9 +920,10 @@ void playGamePhaseGameOver()
 	{
 		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
 					  "waiting for FX to stop.");
+		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
-		if (isReady1 && isReady2)
+		if (isReady0 && isReady1 && isReady2)
 		{
 			currentGamePhaseStep++;
 
@@ -1411,8 +1467,8 @@ void setup()
 		//bool startFx = true;
 		//bool startFx = grpNr != 0;
 		bool startFx = false;
-		SetColors(grpNr, grpNr == 0 ? defaultColPalAll : defaultColPal);
-		SetEffect(grpNr, grpNr == 0 ? defaultFxNrAll : defaultFxNr, startFx, grpNr == 0); //, grpNr == 2 ? direction::REVERSE : direction::FORWARD);
+		SetColors(grpNr, grpNr == 0 ? defaultColPalAll : defaultColPal, true, 0, false);
+		SetEffect(grpNr, grpNr == 0 ? defaultFxNrAll : defaultFxNr, startFx, grpNr == 0);
 	}
 
 	changeGamePhase(gamePhase::GAME_IDLE);
@@ -1489,7 +1545,9 @@ void loop()
 
 		playGamePhase();
 
-		bool isActiveMainGrp = (&(neoGroups.at(0)))->Active;
+		bool isActiveMainGrp =
+			(&(neoGroups.at(0)))->Active ||
+			(&(neoGroups.at(0)))->IsFadingOut();
 		//DEBUG_PRINTLN("Loop: Main group active -> " + String(isActiveMainGrp));
 		bool ledsUpdated = false;
 		for (int grpNr = 0; grpNr < neoGroups.size(); grpNr++)
