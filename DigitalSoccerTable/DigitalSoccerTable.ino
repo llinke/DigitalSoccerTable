@@ -3,7 +3,7 @@
 // **************************************************
 #pragma region Compiler Flags
 // --- WiFi -----------------------------------------
-//#define INCLUDE_WIFI
+#define INCLUDE_WIFI
 // --- Demo --------- -------------------------------
 #define PLAY_DEMO true
 // --- DEBUG ----------------------------------------
@@ -38,6 +38,14 @@
 #include <string.h>
 #include "NeoGroup.cpp"
 
+#include <Ticker.h>
+#include <time.h>
+#pragma endregion
+// **************************************************
+
+// **************************************************
+// *** WiFi
+// **************************************************
 #ifdef INCLUDE_WIFI
 #include <ESP8266WiFi.h>	  //ESP8266 Core WiFi Library (you most likely already have this in your sketch)
 #include <DNSServer.h>		  //Local DNS Server used for redirecting all requests to the configuration portal
@@ -45,11 +53,16 @@
 #include <WiFiManager.h>	  //https://github.com/tzapu/WiFiManager WiFi Configuration Magic
 //#include <ArduinoOTA.h>
 //#include <ESP8266mDNS.h>
-#endif
+const int ConfigureAPTimeout = 10;
 
-#include <Ticker.h>
-#include <time.h>
-#pragma endregion
+#define BLYNK_PRINT Serial
+#define BLYNK_MAX_SENDBYTES 512 // Default is 128
+#include <BlynkSimpleEsp8266.h>
+
+// Device 'XmasTree FBS43':
+const char blynkAuth[] = "905c16ec396c464eba368b412fa1d199";
+const String wifiApName = "AP_SmartSoccer";
+#endif
 // **************************************************
 
 // **************************************************
@@ -173,10 +186,10 @@ std::vector<NeoGroup> neoGroups;
 #ifdef INCLUDE_WIFI
 bool InitWifi(bool useWifiCfgTimeout = true, bool forceReconnect = false)
 {
-	DEBUG_PRINTLN("WIFI ------------------------------------------------------");
+	Serial.println("WIFI ------------------------------------------------------");
 	if (!forceReconnect && WiFi.status() == WL_CONNECTED)
 	{
-		DEBUG_PRINTLN("WiFi: already connected...");
+		Serial.println("WiFi: already connected...");
 		return true; // Is already connected...
 	}
 
@@ -197,12 +210,12 @@ bool InitWifi(bool useWifiCfgTimeout = true, bool forceReconnect = false)
 	//fetches ssid and pass from eeprom and tries to connect
 	//if it does not connect it starts an access point with the specified name
 	//here  "AutoConnectAP" and goes into a blocking loop awaiting configuration
-	DEBUG_PRINTLN("WiFi Manager trying to connect...");
+	Serial.println("WiFi Manager trying to connect...");
 	if (useWifiCfgTimeout)
 	{
-		DEBUG_PRINT("You have ");
-		DEBUG_PRINT(ConfigureAPTimeout);
-		DEBUG_PRINTLN(" seconds for configuration if required.");
+		Serial.print("You have ");
+		Serial.print(ConfigureAPTimeout);
+		Serial.println(" seconds for configuration if required.");
 		wifiManager.setConfigPortalTimeout(ConfigureAPTimeout);
 	}
 	bool connected = wifiManager.autoConnect(wifiApName.c_str());
@@ -215,17 +228,28 @@ bool InitWifi(bool useWifiCfgTimeout = true, bool forceReconnect = false)
 		FastLED.show();
 	}
 	if (connected)
-	{
-		DEBUG_PRINTLN("Wifi is connected...yay!!!");
-	}
+		Serial.println("Wifi is connected...yay!!!");
 	else
-	{
-		DEBUG_PRINTLN("!!! WIFI NOT CONNECTED !!!");
-	}
+		Serial.println("!!! WIFI NOT CONNECTED !!!");
 	delay(5000);
 
 	return connected;
 }
+
+void InitBlynk()
+{
+	if (WiFi.status() != WL_CONNECTED)
+		return;
+
+	Serial.println("BLYNK -----------------------------------------------------");
+	Serial.println("Blynk: authenticating");
+	Blynk.config(blynkAuth);
+	Blynk.connect();
+
+	//SendMenusToBlynk();
+	//SendStatusToBlynk();
+}
+
 #endif
 #pragma endregion
 
@@ -296,7 +320,14 @@ int initStrip(bool doStart = false, bool playDemo = true)
 			DEBUG_PRINT(".");
 		}
 		DEBUG_PRINTLN("DONE");
-
+		delay(500);
+	}
+#if defined(INCLUDE_WIFI)
+	if (InitWifi())
+		InitBlynk();
+#endif
+	if (playDemo)
+	{
 		DEBUG_PRINTLN("Fading away demo effect.");
 		for (int fade = 0; fade < 20; fade++)
 		{
@@ -1232,8 +1263,16 @@ void goalScoredByTeam(int team)
 // [Main Button]
 void onMainButton()
 {
-	uint8_t val = expander.digitalRead(BUTTON_MAIN_PIN);
-	if (val == 0)
+	uint8_t valBtnMain = expander.digitalRead(BUTTON_MAIN_PIN);
+	uint8_t valBtnCfg = expander.digitalRead(BUTTON_SETTINGS_PIN);
+	if (valBtnMain == 0 && valBtnCfg == 0)
+	{
+		Serial.println("Loop: both buttons pressed, entering WiFi-setup.");
+		if (InitWifi(false, true))
+			InitBlynk();
+	}
+
+	if (valBtnMain == 0)
 	{
 		if (areButtonsLocked())
 			return;
