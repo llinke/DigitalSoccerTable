@@ -12,13 +12,13 @@
 //#define SENSORS_ON_I2C
 #define BUTTON_MAIN_PIN 1
 #define BUTTON_SETTINGS_PIN 2
-#define BUTTON_GOAL1_PIN 0
-#define BUTTON_GOAL2_PIN 3
+#define BUTTON_GOAL1_PIN 3
+#define BUTTON_GOAL2_PIN 0
 #ifdef SENSORS_ON_I2C
-#define SENSOR1_GOAL1_PIN 4
-#define SENSOR2_GOAL1_PIN 5
-#define SENSOR1_GOAL2_PIN 6
-#define SENSOR2_GOAL2_PIN 7
+#define SENSOR1_GOAL1_PIN 7
+#define SENSOR2_GOAL1_PIN 6
+#define SENSOR1_GOAL2_PIN 5
+#define SENSOR2_GOAL2_PIN 4
 #endif
 #pragma endregion
 // **************************************************
@@ -1212,6 +1212,13 @@ void onMainButton()
 
 void handleMainButton()
 {
+	if (lockedGoalTriggers || //ignore, triggers still locked
+		wasGoal)			  // ignore, already triggered
+	{
+		mainButtonReleased = false;
+		return;
+	}
+
 	uint32_t pressedFor = millis() - mainButtonAt;
 	DEBUG_PRINT("Button MAIN released, pressed for " + String(pressedFor) + "ms: ");
 
