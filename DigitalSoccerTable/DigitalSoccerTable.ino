@@ -1,13 +1,21 @@
+#include <Arduino.h>
+
 // **************************************************
 // *** Compiler Flags
 // **************************************************
 #pragma region Compiler Flags
 // --- WiFi -----------------------------------------
 //#define INCLUDE_WIFI
-// --- Demo --------- -------------------------------
-#define PLAY_DEMO true
 // --- DEBUG ----------------------------------------
 #define ENABLE_SERIAL_DEBUG
+// --- Demo -----------------------------------------
+#define PLAY_DEMO true
+// --- MP3 Player -----------------------------------
+#define MP3_PLAYER
+#ifdef MP3_PLAYER
+#define MP3_SERIAL_RX D5
+#define MP3_SERIAL_TX D6
+#endif
 // --- Buttons --------------------------------------
 //#define SENSORS_ON_I2C
 #define BUTTON_MAIN_PIN 1
@@ -28,15 +36,24 @@
 // **************************************************
 #pragma region Includes
 #include "SerialDebug.h"
-#include "I2CInclude.h"
-#include "FastLedInclude.h"
-#include "ColorPalettes.h"
-#include <Arduino.h>
 //#include <ArduinoSTL.h>
 #include <vector>
 #include <map>
 #include <string.h>
+
+#include "I2CInclude.h"
+#include <Ticker.h>
+#include <time.h>
+
+#include "FastLedInclude.h"
+#include "ColorPalettes.h"
 #include "NeoGroup.cpp"
+
+#ifdef MP3_PLAYER
+// #include "DFMp3Player.cpp"
+#include <SoftwareSerial.h>
+#include "DFMiniMp3.h"
+#endif
 
 #ifdef INCLUDE_WIFI
 #include <ESP8266WiFi.h>	  //ESP8266 Core WiFi Library (you most likely already have this in your sketch)
@@ -46,9 +63,6 @@
 //#include <ArduinoOTA.h>
 //#include <ESP8266mDNS.h>
 #endif
-
-#include <Ticker.h>
-#include <time.h>
 #pragma endregion
 // **************************************************
 
@@ -111,6 +125,64 @@ const int fxGamePhaseGoal = fxNrComet;
 const int fxGamePhaseGoal2 = fxNrFill;
 const int fxGamePhaseCelebration = fxNrFade;
 const int fxGamePhaseOver = fxNrOrbit;
+
+#ifdef MP3_PLAYER
+// SFX to play before games
+const uint8_t sfxFolderIdle = 1;
+const uint8_t sfxFilesIdle = 14;
+// SFX to play during game
+const uint8_t sfxFolderGame = 2;
+const uint8_t sfxFilesGame = 35;
+// SFX to play when celebrating
+const uint8_t sfxFolderCelebration = 3;
+const uint8_t sfxFilesCelebration = 23;
+// SFX to play when goal was scored
+const uint8_t sfxFolderGoal = 4;
+const uint8_t sfxFilesGoal = 2;
+// SFX to play when game is over
+const uint8_t sfxFolderOver = 5;
+const uint8_t sfxFilesOver = 1;
+
+enum sfxMode
+{
+	SFX_IDLE,
+	SFX_GAME,
+	SFX_GOAL,
+	SFX_CELEBRATION,
+	SFX_OVER
+};
+volatile sfxMode sfxModeCurrent = SFX_IDLE;
+volatile bool sfxPlayFinished = false;
+
+class Mp3Notify
+{
+  public:
+	static void OnError(uint16_t errorCode)
+	{
+		DEBUG_PRINTLN("MP3: COM ERROR " + String(errorCode));
+	}
+	static void OnPlayFinished(uint16_t track)
+	{
+		DEBUG_PRINTLN("MP3: Play finished for #" + String(track));
+		sfxPlayFinished = true;
+	}
+	static void OnCardOnline(uint16_t code)
+	{
+		DEBUG_PRINTLN("MP3: Card online.");
+	}
+	static void OnCardInserted(uint16_t code)
+	{
+		DEBUG_PRINTLN("MP3: Card inserted.");
+	}
+	static void OnCardRemoved(uint16_t code)
+	{
+		DEBUG_PRINTLN("MP3: Card removed.");
+	}
+};
+
+SoftwareSerial secondarySerial(MP3_SERIAL_RX, MP3_SERIAL_TX); // RX, TX
+DFMiniMp3<SoftwareSerial, Mp3Notify> mp3(secondarySerial);
+#endif
 #pragma endregion
 // **************************************************
 
@@ -999,6 +1071,9 @@ void updateGoalStats()
 	DEBUG_PRINTLN("Goal scored for team " + String(wasGoalByTeam + 1) + ", standing: " + String(goals[0]) + ":" + String(goals[1]) + ".");
 
 	changeGamePhase(gamePhase::GAME_GOAL, wasGoalByTeam);
+#ifdef MP3_PLAYER
+	SwitchSfxMode(SFX_GOAL);
+#endif
 
 	wasGoal = false;
 	wasGoalByTeam = -1;
@@ -1032,6 +1107,9 @@ void updateGameTime(int decBy)
 		//gameTimeRemain = gameTimeMax;
 
 		changeGamePhase(gamePhase::GAME_OVER);
+#ifdef MP3_PLAYER
+		SwitchSfxMode(SFX_OVER);
+#endif
 	}
 
 	gameTimeProgress = (gameTimeRemain * 100) / gameTimeMax;
@@ -1058,6 +1136,9 @@ void resetGame()
 	updateGameTime(0);
 
 	changeGamePhase(gamePhase::GAME_IDLE);
+#ifdef MP3_PLAYER
+	SwitchSfxMode(SFX_IDLE);
+#endif
 
 	// Reset OLED display
 	updateOledRequired = true;
@@ -1292,6 +1373,9 @@ void handleMainButton()
 			gameRunning = true;
 
 			changeGamePhase(gamePhase::GAME_RUNNING);
+#ifdef MP3_PLAYER
+			SwitchSfxMode(SFX_GAME);
+#endif
 		}
 		else
 		{
@@ -1300,10 +1384,16 @@ void handleMainButton()
 			if (gamePaused)
 			{
 				changeGamePhase(gamePhase::GAME_PAUSED);
+#ifdef MP3_PLAYER
+				SwitchSfxMode(SFX_IDLE);
+#endif
 			}
 			else
 			{
 				changeGamePhase(gamePhase::GAME_RUNNING);
+#ifdef MP3_PLAYER
+				SwitchSfxMode(SFX_GAME);
+#endif
 			}
 		}
 		updateOledRequired = true;
@@ -1392,6 +1482,94 @@ bool areButtonsLocked()
 #pragma endregion
 
 // **************************************************
+// *** MP3 Player
+// **************************************************
+#pragma region MP3 Player
+#ifdef MP3_PLAYER
+void SetupMp3()
+{
+	DEBUG_PRINTLN("MP3: Initializing...");
+	mp3.begin();
+	mp3.reset();
+
+	mp3.setVolume(15);
+	uint16_t volume = mp3.getVolume();
+	DEBUG_PRINTLN("MP3: Volume " + String(volume));
+
+	uint16_t count = mp3.getTotalTrackCount();
+	DEBUG_PRINTLN("MP3: Files " + String(count));
+
+	mp3.setRepeatPlay(false);
+	uint16_t mode = mp3.getPlaybackMode();
+	DEBUG_PRINTLN("MP3: Playback mode " + String(mode));
+
+	mp3.setEq(DfMp3_Eq_Normal);
+	DfMp3_Eq eqmode = mp3.getEq();
+	DEBUG_PRINTLN("MP3: EQ " + String(eqmode));
+}
+
+void LoopMp3()
+{
+	// calling mp3.loop() periodically allows for notifications
+	// to be handled without interrupts
+	mp3.loop();
+}
+
+void PlayNextSfx(bool keepMode = false)
+{
+	if (!keepMode)
+	{
+		if (sfxModeCurrent == SFX_GOAL)
+		{
+			sfxModeCurrent = SFX_CELEBRATION;
+		}
+		else if (sfxModeCurrent == SFX_OVER)
+		{
+			sfxModeCurrent = SFX_CELEBRATION;
+		}
+	}
+
+	DEBUG_PRINTLN("MP3: Randomly selecting next MP3 to play...");
+	uint8_t nextFolder = 1;
+	uint8_t nextTrack = 1;
+	if (sfxModeCurrent == SFX_IDLE)
+	{
+		nextFolder = sfxFolderIdle;
+		nextTrack = random(0, sfxFilesIdle);
+	}
+	if (sfxModeCurrent == SFX_GAME)
+	{
+		nextFolder = sfxFolderGame;
+		nextTrack = random(0, sfxFilesGame);
+	}
+	if (sfxModeCurrent == SFX_GOAL)
+	{
+		nextFolder = sfxFolderGoal;
+		nextTrack = random(0, sfxFilesGoal);
+	}
+	if (sfxModeCurrent == SFX_CELEBRATION)
+	{
+		nextFolder = sfxFolderCelebration;
+		nextTrack = random(0, sfxFilesCelebration);
+	}
+	if (sfxModeCurrent == SFX_OVER)
+	{
+		nextFolder = sfxFolderOver;
+		nextTrack = random(0, sfxFilesOver);
+	}
+
+	mp3.playFolderTrack(nextFolder, 1 + nextTrack);
+}
+
+void SwitchSfxMode(sfxMode sfxModeNext)
+{
+	sfxModeCurrent = sfxModeNext;
+	PlayNextSfx(true);
+}
+#endif
+#pragma endregion
+
+// **************************************************
 // *** Application Setup
 // **************************************************
 #pragma region Application Setup
@@ -1472,8 +1650,15 @@ void setup()
 	}
 
 	changeGamePhase(gamePhase::GAME_IDLE);
+#ifdef MP3_PLAYER
+	SwitchSfxMode(SFX_IDLE);
+#endif
 
 	drawDisplay();
+
+#ifdef MP3_PLAYER
+	SetupMp3();
+#endif
 }
 #pragma endregion
 
@@ -1574,6 +1759,15 @@ void loop()
 	{
 		////DEBUG_PRINTLN("Loop: LEDs not started, leaving loop.");
 	}
+
+#ifdef MP3_PLAYER
+	if (sfxPlayFinished)
+	{
+		sfxPlayFinished = false;
+		PlayNextSfx();
+	}
+	LoopMp3();
+#endif
 
 	// REQUIRED: allow processing of interrupts etc
 	delay(0);
