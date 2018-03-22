@@ -130,22 +130,22 @@ const int fxGamePhaseOver = fxNrOrbit;
 #ifdef MP3_PLAYER
 // SFX to play on initialization
 const uint8_t sfxFolderStart = 1;
-const uint8_t sfxFilesStart = 2;
+volatile uint8_t sfxFilesStart = 0;
 // SFX to play before games
-const uint8_t sfxFolderIdle = 1;
-const uint8_t sfxFilesIdle = 14;
+const uint8_t sfxFolderIdle = 2;
+volatile uint8_t sfxFilesIdle = 0;
 // SFX to play during game
-const uint8_t sfxFolderGame = 2;
-const uint8_t sfxFilesGame = 35;
+const uint8_t sfxFolderGame = 3;
+volatile uint8_t sfxFilesGame = 0;
 // SFX to play when celebrating
-const uint8_t sfxFolderCelebration = 3;
-const uint8_t sfxFilesCelebration = 23;
+const uint8_t sfxFolderCelebration = 4;
+volatile uint8_t sfxFilesCelebration = 0;
 // SFX to play when goal was scored
-const uint8_t sfxFolderGoal = 4;
-const uint8_t sfxFilesGoal = 2;
+const uint8_t sfxFolderGoal = 5;
+volatile uint8_t sfxFilesGoal = 0;
 // SFX to play when game is over
-const uint8_t sfxFolderOver = 5;
-const uint8_t sfxFilesOver = 1;
+const uint8_t sfxFolderOver = 6;
+volatile uint8_t sfxFilesOver = 0;
 
 enum sfxMode
 {
@@ -1110,7 +1110,7 @@ void updateGoalStats()
 	DEBUG_PRINTLN("Goal scored for team " + String(wasGoalByTeam + 1) + ", standing: " + String(goals[0]) + ":" + String(goals[1]) + ".");
 
 #ifdef MP3_PLAYER
-	SwitchSfxMode(SFX_GOAL);
+	SwitchSfxMode(SFX_GOAL, true);
 #endif
 	changeGamePhase(gamePhase::GAME_GOAL, wasGoalByTeam);
 
@@ -1146,7 +1146,7 @@ void updateGameTime(int decBy)
 		//gameTimeRemain = gameTimeMax;
 
 #ifdef MP3_PLAYER
-		SwitchSfxMode(SFX_OVER);
+		SwitchSfxMode(SFX_OVER, true);
 #endif
 		changeGamePhase(gamePhase::GAME_OVER);
 	}
@@ -1175,7 +1175,7 @@ void resetGame()
 	updateGameTime(0);
 
 #ifdef MP3_PLAYER
-	SwitchSfxMode(SFX_IDLE);
+	SwitchSfxMode(SFX_IDLE, true);
 #endif
 	changeGamePhase(gamePhase::GAME_IDLE);
 
@@ -1412,7 +1412,7 @@ void handleMainButton()
 			gameRunning = true;
 
 #ifdef MP3_PLAYER
-			SwitchSfxMode(SFX_GAME);
+			SwitchSfxMode(SFX_GAME, true);
 #endif
 			changeGamePhase(gamePhase::GAME_RUNNING);
 		}
@@ -1423,14 +1423,14 @@ void handleMainButton()
 			if (gamePaused)
 			{
 #ifdef MP3_PLAYER
-				SwitchSfxMode(SFX_IDLE);
+				SwitchSfxMode(SFX_IDLE, true);
 #endif
 				changeGamePhase(gamePhase::GAME_PAUSED);
 			}
 			else
 			{
 #ifdef MP3_PLAYER
-				SwitchSfxMode(SFX_GAME);
+				SwitchSfxMode(SFX_GAME, true);
 #endif
 				changeGamePhase(gamePhase::GAME_RUNNING);
 			}
@@ -1532,14 +1532,25 @@ void PlayNextSfx(bool keepMode = false)
 
 	if (!keepMode)
 	{
+		if (sfxModeCurrent == SFX_START)
+		{
+			DEBUG_PRINTLN("MP3: Auto switching SFX mode from " + String(sfxModeCurrent) + " to " + String(SFX_IDLE));
+			sfxModeCurrent = SFX_IDLE;
+		}
 		if (sfxModeCurrent == SFX_GOAL)
 		{
+			DEBUG_PRINTLN("MP3: Auto switching SFX mode from " + String(sfxModeCurrent) + " to " + String(SFX_CELEBRATION));
 			sfxModeCurrent = SFX_CELEBRATION;
 		}
 		else if (sfxModeCurrent == SFX_OVER)
 		{
+			DEBUG_PRINTLN("MP3: Auto switching SFX mode from " + String(sfxModeCurrent) + " to " + String(SFX_CELEBRATION));
 			sfxModeCurrent = SFX_CELEBRATION;
 		}
+	}
+	else
+	{
+		DEBUG_PRINTLN("MP3: Keeping current SFX mode " + String(sfxModeCurrent));
 	}
 
 	DEBUG_PRINTLN("MP3: Randomly selecting next MP3 to play for mode " + String(sfxModeCurrent) + "...");
@@ -1549,26 +1560,56 @@ void PlayNextSfx(bool keepMode = false)
 	{
 	case SFX_START:
 		nextFolder = sfxFolderStart;
+		if (sfxFilesStart == 0)
+		{
+			sfxFilesStart = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesStart));
+		}
 		nextTrack = random(0, sfxFilesStart);
 		break;
 	case SFX_IDLE:
 		nextFolder = sfxFolderIdle;
+		if (sfxFilesIdle == 0)
+		{
+			sfxFilesIdle = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesIdle));
+		}
 		nextTrack = random(0, sfxFilesIdle);
 		break;
 	case SFX_GAME:
 		nextFolder = sfxFolderGame;
+		if (sfxFilesGame == 0)
+		{
+			sfxFilesGame = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesGame));
+		}
 		nextTrack = random(0, sfxFilesGame);
 		break;
 	case SFX_GOAL:
 		nextFolder = sfxFolderGoal;
+		if (sfxFilesGoal == 0)
+		{
+			sfxFilesGoal = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesGoal));
+		}
 		nextTrack = random(0, sfxFilesGoal);
 		break;
 	case SFX_CELEBRATION:
 		nextFolder = sfxFolderCelebration;
+		if (sfxFilesCelebration == 0)
+		{
+			sfxFilesCelebration = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesCelebration));
+		}
 		nextTrack = random(0, sfxFilesCelebration);
 		break;
 	case SFX_OVER:
 		nextFolder = sfxFolderOver;
+		if (sfxFilesOver == 0)
+		{
+			sfxFilesOver = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesOver));
+		}
 		nextTrack = random(0, sfxFilesOver);
 		break;
 	}
@@ -1586,11 +1627,12 @@ void PlayNextSfx(bool keepMode = false)
 	ResetNextSfxRequest();
 }
 
-void SwitchSfxMode(sfxMode sfxModeNext)
+void SwitchSfxMode(sfxMode sfxModeNext, bool switchNow)
 {
 	DEBUG_PRINTLN("MP3: Switching mode to " + String(sfxModeNext) + "...");
 	sfxModeCurrent = sfxModeNext;
-	RequestNextSfx(-1);
+	if (switchNow)
+		RequestNextSfx(-1);
 }
 
 void onDfPlayerBusyReleased()
@@ -1640,7 +1682,7 @@ void SetupMp3Player()
 	DfMp3_Eq eqmode = dfPlayer.getEq();
 	DEBUG_PRINTLN("MP3: EQ " + String(eqmode));
 
-	SwitchSfxMode(SFX_START);
+	SwitchSfxMode(SFX_START, true);
 	PlayNextSfx(true);
 
 	DEBUG_PRINTLN("MP3: Setup finished!");
@@ -1709,7 +1751,7 @@ void setup()
 
 #ifdef MP3_PLAYER
 	SetupMp3Player();
-	SwitchSfxMode(SFX_IDLE);
+	SwitchSfxMode(SFX_IDLE, false);
 #endif
 
 	DEBUG_PRINTLN("PCF8574: attaching main/cfg buttons.");
