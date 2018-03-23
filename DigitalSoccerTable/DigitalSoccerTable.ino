@@ -157,40 +157,35 @@ enum sfxMode
 	SFX_OVER
 };
 volatile sfxMode sfxModeCurrent = SFX_IDLE;
+volatile bool sfxModeSwitched = false;
 volatile bool sfxNextRequested = false;
-volatile int sfxNextRequestedAt = -1;
-const int sfxNextRequestDelay = 2 * 1000;
+volatile int sfxBusyReleasedAt = millis();
+volatile int sfxBusyReleasedDelay = 2 * 1000;
 const uint8_t sfxVolume = 8;
 
-void RequestNextSfx(int requestedAt = 0)
+void RequestNextSfx()
 {
 	DEBUG_PRINTLN("MP3: REQUEST to play next track.");
 	sfxNextRequested = true;
-
-	if (requestedAt == 0 && !CanPlayNextSfx())
-		return;
-
-	sfxNextRequestedAt = requestedAt != 0 ? requestedAt : millis();
 }
 
 void ResetNextSfxRequest()
 {
 	sfxNextRequested = false;
-	sfxNextRequestedAt = -1;
 	DEBUG_PRINTLN("MP3: CLEAR request to play next track.");
 }
 
 bool CanPlayNextSfx()
 {
-	// DEBUG_PRINTLN("MP3: CanPlayNextSfx >> " + String(millis()) + ">" + String(sfxNextRequestedAt + sfxNextRequestDelay) + " ???");
-	if ((sfxNextRequestedAt < 0) || (millis() > (sfxNextRequestedAt + sfxNextRequestDelay)))
+	bool playerIsBusy = !digitalRead(MP3_BUSY_PIN);
+	if (playerIsBusy)
 	{
-		DEBUG_PRINTLN("MP3: CanPlayNextSfx >> OK");
-		return true;
+		// DEBUG_PRINTLN("MP3: CanPlayNextSfx >> IGNORED!");
+		return false;
 	}
 
-	// DEBUG_PRINTLN("MP3: CanPlayNextSfx >> IGNORED!");
-	return false;
+	DEBUG_PRINTLN("MP3: CanPlayNextSfx >> OK");
+	return true;
 }
 
 class DfPlayerNotify
@@ -1110,7 +1105,7 @@ void updateGoalStats()
 	DEBUG_PRINTLN("Goal scored for team " + String(wasGoalByTeam + 1) + ", standing: " + String(goals[0]) + ":" + String(goals[1]) + ".");
 
 #ifdef MP3_PLAYER
-	SwitchSfxMode(SFX_GOAL, true);
+	SwitchSfxMode(SFX_GOAL);
 #endif
 	changeGamePhase(gamePhase::GAME_GOAL, wasGoalByTeam);
 
@@ -1146,7 +1141,7 @@ void updateGameTime(int decBy)
 		//gameTimeRemain = gameTimeMax;
 
 #ifdef MP3_PLAYER
-		SwitchSfxMode(SFX_OVER, true);
+		SwitchSfxMode(SFX_OVER);
 #endif
 		changeGamePhase(gamePhase::GAME_OVER);
 	}
@@ -1175,7 +1170,7 @@ void resetGame()
 	updateGameTime(0);
 
 #ifdef MP3_PLAYER
-	SwitchSfxMode(SFX_IDLE, true);
+	SwitchSfxMode(SFX_IDLE);
 #endif
 	changeGamePhase(gamePhase::GAME_IDLE);
 
@@ -1412,7 +1407,7 @@ void handleMainButton()
 			gameRunning = true;
 
 #ifdef MP3_PLAYER
-			SwitchSfxMode(SFX_GAME, true);
+			SwitchSfxMode(SFX_GAME);
 #endif
 			changeGamePhase(gamePhase::GAME_RUNNING);
 		}
@@ -1423,14 +1418,14 @@ void handleMainButton()
 			if (gamePaused)
 			{
 #ifdef MP3_PLAYER
-				SwitchSfxMode(SFX_IDLE, true);
+				SwitchSfxMode(SFX_IDLE);
 #endif
 				changeGamePhase(gamePhase::GAME_PAUSED);
 			}
 			else
 			{
 #ifdef MP3_PLAYER
-				SwitchSfxMode(SFX_GAME, true);
+				SwitchSfxMode(SFX_GAME);
 #endif
 				changeGamePhase(gamePhase::GAME_RUNNING);
 			}
@@ -1525,12 +1520,17 @@ bool areButtonsLocked()
 // **************************************************
 #pragma region MP3 Player
 #ifdef MP3_PLAYER
-void PlayNextSfx(bool keepMode = false)
+void PlayNextSfx()
 {
-	if (!CanPlayNextSfx())
+	if (!sfxModeSwitched && !CanPlayNextSfx())
+	{
+		// DEBUG_PRINTLN("MP3: PlayNextSfx BLOCKED, cannot play next track.");
 		return;
+	}
 
-	if (!keepMode)
+	ResetNextSfxRequest();
+
+	if (!sfxModeSwitched)
 	{
 		if (sfxModeCurrent == SFX_START)
 		{
@@ -1553,6 +1553,8 @@ void PlayNextSfx(bool keepMode = false)
 		DEBUG_PRINTLN("MP3: Keeping current SFX mode " + String(sfxModeCurrent));
 	}
 
+	sfxModeSwitched = false;
+
 	DEBUG_PRINTLN("MP3: Randomly selecting next MP3 to play for mode " + String(sfxModeCurrent) + "...");
 	uint8_t nextFolder = 1;
 	uint8_t nextTrack = 1;
@@ -1563,7 +1565,7 @@ void PlayNextSfx(bool keepMode = false)
 		if (sfxFilesStart == 0)
 		{
 			sfxFilesStart = dfPlayer.getFolderTrackCount(nextFolder);
-			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesStart));
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesStart));
 		}
 		nextTrack = random(0, sfxFilesStart);
 		break;
@@ -1572,7 +1574,7 @@ void PlayNextSfx(bool keepMode = false)
 		if (sfxFilesIdle == 0)
 		{
 			sfxFilesIdle = dfPlayer.getFolderTrackCount(nextFolder);
-			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesIdle));
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesIdle));
 		}
 		nextTrack = random(0, sfxFilesIdle);
 		break;
@@ -1581,7 +1583,7 @@ void PlayNextSfx(bool keepMode = false)
 		if (sfxFilesGame == 0)
 		{
 			sfxFilesGame = dfPlayer.getFolderTrackCount(nextFolder);
-			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesGame));
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesGame));
 		}
 		nextTrack = random(0, sfxFilesGame);
 		break;
@@ -1590,7 +1592,7 @@ void PlayNextSfx(bool keepMode = false)
 		if (sfxFilesGoal == 0)
 		{
 			sfxFilesGoal = dfPlayer.getFolderTrackCount(nextFolder);
-			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesGoal));
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesGoal));
 		}
 		nextTrack = random(0, sfxFilesGoal);
 		break;
@@ -1599,7 +1601,7 @@ void PlayNextSfx(bool keepMode = false)
 		if (sfxFilesCelebration == 0)
 		{
 			sfxFilesCelebration = dfPlayer.getFolderTrackCount(nextFolder);
-			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesCelebration));
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesCelebration));
 		}
 		nextTrack = random(0, sfxFilesCelebration);
 		break;
@@ -1608,7 +1610,7 @@ void PlayNextSfx(bool keepMode = false)
 		if (sfxFilesOver == 0)
 		{
 			sfxFilesOver = dfPlayer.getFolderTrackCount(nextFolder);
-			DEBUG_PRINTLN("MP3: # of files in folder " + String(nextFolder) + ": " + String(sfxFilesOver));
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesOver));
 		}
 		nextTrack = random(0, sfxFilesOver);
 		break;
@@ -1620,24 +1622,33 @@ void PlayNextSfx(bool keepMode = false)
 	uint16_t currTrack = dfPlayer.getCurrentTrack();
 	DEBUG_PRINTLN("MP3: Track playing " + String(currTrack));
 
+	// ResetNextSfxRequest();
+
 	// DEBUG_PRINTLN("MP3: Getting status...");
 	// uint16_t status = dfPlayer.getStatus();
 	// DEBUG_PRINTLN("MP3: Status " + String(status));
-
-	ResetNextSfxRequest();
 }
 
-void SwitchSfxMode(sfxMode sfxModeNext, bool switchNow)
+void SwitchSfxMode(sfxMode sfxModeNext)
 {
 	DEBUG_PRINTLN("MP3: Switching mode to " + String(sfxModeNext) + "...");
 	sfxModeCurrent = sfxModeNext;
-	if (switchNow)
-		RequestNextSfx(-1);
+	sfxModeSwitched = true;
+	sfxBusyReleasedAt = millis();
+	RequestNextSfx();
 }
 
 void onDfPlayerBusyReleased()
 {
+	if (!sfxModeSwitched &&
+		millis() < (sfxBusyReleasedAt + sfxBusyReleasedDelay))
+	{
+		DEBUG_PRINTLN("MP3: IGNORING release of BUSY signal.");
+		return;
+	}
+
 	DEBUG_PRINTLN("MP3: BUSY signal released...");
+	sfxBusyReleasedAt = millis();
 	RequestNextSfx();
 }
 
@@ -1682,8 +1693,8 @@ void SetupMp3Player()
 	DfMp3_Eq eqmode = dfPlayer.getEq();
 	DEBUG_PRINTLN("MP3: EQ " + String(eqmode));
 
-	SwitchSfxMode(SFX_START, true);
-	PlayNextSfx(true);
+	SwitchSfxMode(SFX_START);
+	PlayNextSfx();
 
 	DEBUG_PRINTLN("MP3: Setup finished!");
 }
@@ -1751,7 +1762,6 @@ void setup()
 
 #ifdef MP3_PLAYER
 	SetupMp3Player();
-	SwitchSfxMode(SFX_IDLE, false);
 #endif
 
 	DEBUG_PRINTLN("PCF8574: attaching main/cfg buttons.");
@@ -1890,7 +1900,7 @@ void loop()
 
 	if (sfxNextRequested)
 	{
-		PlayNextSfx(sfxNextRequestedAt == -1);
+		PlayNextSfx();
 	}
 #endif
 
