@@ -1,19 +1,29 @@
+#include <Arduino.h>
+
 // **************************************************
 // *** Compiler Flags
 // **************************************************
 #pragma region Compiler Flags
 // --- WiFi -----------------------------------------
 //#define INCLUDE_WIFI
-// --- Demo --------- -------------------------------
-#define PLAY_DEMO true
 // --- DEBUG ----------------------------------------
-#define ENABLE_SERIAL_DEBUG
+//#define ENABLE_SERIAL_DEBUG
+// --- Demo -----------------------------------------
+#define PLAY_DEMO true
+// --- MP3 Player -----------------------------------
+#define MP3_PLAYER
+#ifdef MP3_PLAYER
+#define MP3_SERIAL_RX D5
+#define MP3_SERIAL_TX D6
+#define MP3_BUSY_PIN D7
+#endif
 // --- Buttons --------------------------------------
 //#define SENSORS_ON_I2C
 #define BUTTON_MAIN_PIN 1
 #define BUTTON_SETTINGS_PIN 2
 #define BUTTON_GOAL1_PIN 3
 #define BUTTON_GOAL2_PIN 0
+#define BUTTON_GOAL_SWITCH_LOGIC
 #ifdef SENSORS_ON_I2C
 #define SENSOR1_GOAL1_PIN 7
 #define SENSOR2_GOAL1_PIN 6
@@ -28,15 +38,24 @@
 // **************************************************
 #pragma region Includes
 #include "SerialDebug.h"
-#include "I2CInclude.h"
-#include "FastLedInclude.h"
-#include "ColorPalettes.h"
-#include <Arduino.h>
 //#include <ArduinoSTL.h>
 #include <vector>
 #include <map>
 #include <string.h>
+
+#include "I2CInclude.h"
+#include <Ticker.h>
+#include <time.h>
+
+#include "FastLedInclude.h"
+#include "ColorPalettes.h"
 #include "NeoGroup.cpp"
+
+#ifdef MP3_PLAYER
+// #include "DFMp3Player.cpp"
+#include <SoftwareSerial.h>
+#include "DFMiniMp3.h"
+#endif
 
 #ifdef INCLUDE_WIFI
 #include <ESP8266WiFi.h>	  //ESP8266 Core WiFi Library (you most likely already have this in your sketch)
@@ -46,9 +65,6 @@
 //#include <ArduinoOTA.h>
 //#include <ESP8266mDNS.h>
 #endif
-
-#include <Ticker.h>
-#include <time.h>
 #pragma endregion
 // **************************************************
 
@@ -111,6 +127,100 @@ const int fxGamePhaseGoal = fxNrComet;
 const int fxGamePhaseGoal2 = fxNrFill;
 const int fxGamePhaseCelebration = fxNrFade;
 const int fxGamePhaseOver = fxNrOrbit;
+
+#ifdef MP3_PLAYER
+// SFX to play on initialization
+const uint8_t sfxFolderStart = 1;
+volatile uint8_t sfxFilesStart = 0;
+// SFX to play before games
+const uint8_t sfxFolderIdle = 2;
+volatile uint8_t sfxFilesIdle = 0;
+// SFX to play during game
+const uint8_t sfxFolderGame = 3;
+volatile uint8_t sfxFilesGame = 0;
+// SFX to play when celebrating
+const uint8_t sfxFolderCelebration = 4;
+volatile uint8_t sfxFilesCelebration = 0;
+// SFX to play when goal was scored
+const uint8_t sfxFolderGoal = 5;
+volatile uint8_t sfxFilesGoal = 0;
+// SFX to play when game is over
+const uint8_t sfxFolderOver = 6;
+volatile uint8_t sfxFilesOver = 0;
+
+enum sfxMode
+{
+	SFX_START,
+	SFX_IDLE,
+	SFX_GAME,
+	SFX_GOAL,
+	SFX_CELEBRATION,
+	SFX_OVER
+};
+volatile sfxMode sfxModeCurrent = SFX_IDLE;
+volatile bool sfxModeSwitched = false;
+volatile bool sfxNextRequested = false;
+volatile int sfxBusyReleasedAt = millis();
+volatile int sfxBusyReleasedDelay = 2 * 1000;
+volatile bool sfxWatchdogEnabled = false;
+volatile int sfxWatchdogCheckAt = 0;
+const int sfxWatchdogDelay = 1000;
+const uint8_t sfxVolume = 8;
+
+void RequestNextSfx()
+{
+	DEBUG_PRINTLN("MP3: REQUEST to play next track.");
+	sfxNextRequested = true;
+}
+
+void ResetNextSfxRequest()
+{
+	sfxNextRequested = false;
+	DEBUG_PRINTLN("MP3: CLEAR request to play next track.");
+}
+
+bool CanPlayNextSfx()
+{
+	bool playerIsBusy = !digitalRead(MP3_BUSY_PIN);
+	if (playerIsBusy)
+	{
+		// DEBUG_PRINTLN("MP3: CanPlayNextSfx >> IGNORED!");
+		return false;
+	}
+
+	DEBUG_PRINTLN("MP3: CanPlayNextSfx >> OK");
+	return true;
+}
+
+class DfPlayerNotify
+{
+  public:
+	static void OnError(uint16_t errorCode)
+	{
+		DEBUG_PRINTLN("MP3: COM ERROR " + String(errorCode));
+	}
+	static void OnPlayFinished(uint16_t track)
+	{
+		DEBUG_PRINTLN("MP3: Play finished for #" + String(track));
+		// RequestNextSfx();
+	}
+	static void OnCardOnline(uint16_t code)
+	{
+		DEBUG_PRINTLN("MP3: Card online.");
+	}
+	static void OnCardInserted(uint16_t code)
+	{
+		DEBUG_PRINTLN("MP3: Card inserted.");
+	}
+	static void OnCardRemoved(uint16_t code)
+	{
+		DEBUG_PRINTLN("MP3: Card removed.");
+	}
+};
+
+SoftwareSerial dfSoftSerial(MP3_SERIAL_RX, MP3_SERIAL_TX); // RX, TX
+DFMiniMp3<SoftwareSerial, DfPlayerNotify> dfPlayer(dfSoftSerial);
+#endif
 #pragma endregion
 // **************************************************
 
@@ -620,8 +730,8 @@ void playGamePhaseIdle()
 	// -- <[ PREPARE ]> ----------
 	if (currentGamePhaseStep == 0) // Prepare
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for FX to stop.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for FX to stop.");
 		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
@@ -647,8 +757,8 @@ void playGamePhaseRunning()
 	// -- <[ PREPARE ]> ----------
 	if (currentGamePhaseStep == 0) // Prepare
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for FX to stop.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for FX to stop.");
 		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
@@ -674,8 +784,8 @@ void playGamePhasePaused()
 	// -- <[ PREPARE ]> ----------
 	if (currentGamePhaseStep == 0) // Prepare
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for FX to stop.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for FX to stop.");
 		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
@@ -717,8 +827,8 @@ void playGamePhaseGoal()
 	// -- <[ PREPARE ]> ----------
 	if (currentGamePhaseStep == 0) // Prepare
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for FX to stop.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for FX to stop.");
 		bool isReady0 = isReadyForGamePhase(0, true);
 		bool isReady1 = isReadyForGamePhase(1, true);
 		bool isReady2 = isReadyForGamePhase(2, true);
@@ -758,8 +868,8 @@ void playGamePhaseGoal()
 	// -- <[ PLAY FX ]> ----------
 	if (currentGamePhaseStep == 2) // Wait until FX is finished
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for runonce-FX to finish.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for runonce-FX to finish.");
 		/*
 		bool isRunningOnce1 = isRunningOnce(1);
 		bool isRunningOnce2 = isRunningOnce(2);
@@ -807,8 +917,8 @@ void playGamePhaseGoal()
 	// -- <[ PLAY FX ]> ----------
 	if (currentGamePhaseStep == 4) // Wait until FX is finished
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for runonce-FX to finish.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for runonce-FX to finish.");
 		/*
 		bool isRunningOnce1 = isRunningOnce(1);
 		bool isRunningOnce2 = isRunningOnce(2);
@@ -826,8 +936,8 @@ void playGamePhaseGoal()
 	// -- <[ SWITCH GAME PHASE ]> ----------
 	if (currentGamePhaseStep == 5) // Switch to next game phase
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for FX to stop.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for FX to stop.");
 		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
@@ -849,8 +959,8 @@ void playGamePhaseCelebration()
 	// -- <[ PREPARE ]> ----------
 	if (currentGamePhaseStep == 0) // Prepare
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for FX to stop.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for FX to stop.");
 		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
@@ -880,8 +990,8 @@ void playGamePhaseGameOver()
 	// -- <[ PREPARE ]> ----------
 	if (currentGamePhaseStep == 0) // Prepare
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for FX to stop.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for FX to stop.");
 		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
@@ -906,8 +1016,8 @@ void playGamePhaseGameOver()
 	// -- <[ PLAY FX ]> ----------
 	if (currentGamePhaseStep == 2) // Wait until FX is finished
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for runonce-FX to finish.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for runonce-FX to finish.");
 		bool isRunningOnce1 = isRunningOnce(1);
 		bool isRunningOnce2 = isRunningOnce(2);
 		if (!isRunningOnce1 && !isRunningOnce2)
@@ -918,8 +1028,8 @@ void playGamePhaseGameOver()
 	// -- <[ SWITCH GAME PHASE ]> ----------
 	if (currentGamePhaseStep == 3) // Switch to next game phase
 	{
-		DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
-					  "waiting for FX to stop.");
+		// DEBUG_PRINTLN("PHASE [" + String(currentGamePhase) + "-" + String(currentGamePhaseStep) + "]: " +
+		// 			  "waiting for FX to stop.");
 		bool isReady0 = isReadyForGamePhase(0);
 		bool isReady1 = isReadyForGamePhase(1);
 		bool isReady2 = isReadyForGamePhase(2);
@@ -998,6 +1108,9 @@ void updateGoalStats()
 	gamePaused = true;
 	DEBUG_PRINTLN("Goal scored for team " + String(wasGoalByTeam + 1) + ", standing: " + String(goals[0]) + ":" + String(goals[1]) + ".");
 
+#ifdef MP3_PLAYER
+	SwitchSfxMode(SFX_GOAL);
+#endif
 	changeGamePhase(gamePhase::GAME_GOAL, wasGoalByTeam);
 
 	wasGoal = false;
@@ -1031,6 +1144,9 @@ void updateGameTime(int decBy)
 		gamePaused = true;
 		//gameTimeRemain = gameTimeMax;
 
+#ifdef MP3_PLAYER
+		SwitchSfxMode(SFX_OVER);
+#endif
 		changeGamePhase(gamePhase::GAME_OVER);
 	}
 
@@ -1057,6 +1173,9 @@ void resetGame()
 	gameTimeRemain = gameTimeMax;
 	updateGameTime(0);
 
+#ifdef MP3_PLAYER
+	SwitchSfxMode(SFX_IDLE);
+#endif
 	changeGamePhase(gamePhase::GAME_IDLE);
 
 	// Reset OLED display
@@ -1149,6 +1268,7 @@ void drawDisplay()
 	// Alternative 2: highlight headers by filled rectangle
 	display.setColor(OLEDDISPLAY_COLOR::INVERSE);
 	display.fillRect(0, 0, 128, 14);
+
 	// Outline around whole display
 	display.setColor(OLEDDISPLAY_COLOR::WHITE);
 	display.drawRect(0, 0, 128, 64);
@@ -1177,7 +1297,11 @@ void onGoalButtonTeam1()
 {
 	if (gameRunning)
 	{
+#ifdef BUTTON_GOAL_SWITCH_LOGIC
+		goalScoredByTeam(1);
+#else
 		goalScoredByTeam(0);
+#endif
 	}
 	else
 	{
@@ -1188,7 +1312,11 @@ void onGoalButtonTeam2()
 {
 	if (gameRunning)
 	{
+#ifdef BUTTON_GOAL_SWITCH_LOGIC
+		goalScoredByTeam(0);
+#else
 		goalScoredByTeam(1);
+#endif
 	}
 	else
 	{
@@ -1291,6 +1419,9 @@ void handleMainButton()
 			// Start game if not started
 			gameRunning = true;
 
+#ifdef MP3_PLAYER
+			SwitchSfxMode(SFX_GAME);
+#endif
 			changeGamePhase(gamePhase::GAME_RUNNING);
 		}
 		else
@@ -1299,10 +1430,16 @@ void handleMainButton()
 			gamePaused = !gamePaused;
 			if (gamePaused)
 			{
+#ifdef MP3_PLAYER
+				SwitchSfxMode(SFX_IDLE);
+#endif
 				changeGamePhase(gamePhase::GAME_PAUSED);
 			}
 			else
 			{
+#ifdef MP3_PLAYER
+				SwitchSfxMode(SFX_GAME);
+#endif
 				changeGamePhase(gamePhase::GAME_RUNNING);
 			}
 		}
@@ -1392,6 +1529,231 @@ bool areButtonsLocked()
 #pragma endregion
 
 // **************************************************
+// *** MP3 Player
+// **************************************************
+#pragma region MP3 Player
+#ifdef MP3_PLAYER
+void PlayNextSfx()
+{
+	if (!sfxModeSwitched && !CanPlayNextSfx())
+	{
+		// DEBUG_PRINTLN("MP3: PlayNextSfx BLOCKED, cannot play next track.");
+		return;
+	}
+
+	ResetNextSfxRequest();
+
+	if (!sfxModeSwitched)
+	{
+		if (sfxModeCurrent == SFX_START)
+		{
+			DEBUG_PRINTLN("MP3: Auto switching SFX mode from " + String(sfxModeCurrent) + " to " + String(SFX_IDLE));
+			sfxModeCurrent = SFX_IDLE;
+		}
+		if (sfxModeCurrent == SFX_GOAL)
+		{
+			DEBUG_PRINTLN("MP3: Auto switching SFX mode from " + String(sfxModeCurrent) + " to " + String(SFX_CELEBRATION));
+			sfxModeCurrent = SFX_CELEBRATION;
+		}
+		else if (sfxModeCurrent == SFX_OVER)
+		{
+			DEBUG_PRINTLN("MP3: Auto switching SFX mode from " + String(sfxModeCurrent) + " to " + String(SFX_CELEBRATION));
+			sfxModeCurrent = SFX_CELEBRATION;
+		}
+	}
+	else
+	{
+		DEBUG_PRINTLN("MP3: Keeping current SFX mode " + String(sfxModeCurrent));
+	}
+
+	sfxModeSwitched = false;
+
+	DEBUG_PRINTLN("MP3: Randomly selecting next MP3 to play for mode " + String(sfxModeCurrent) + "...");
+	uint8_t nextFolder = 1;
+	uint8_t nextTrack = 1;
+	switch (sfxModeCurrent)
+	{
+	case SFX_START:
+		nextFolder = sfxFolderStart;
+		if (sfxFilesStart == 0)
+		{
+			sfxFilesStart = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesStart));
+		}
+		nextTrack = sfxFilesStart == 0 ? -1 : random(0, sfxFilesStart);
+		break;
+	case SFX_IDLE:
+		nextFolder = sfxFolderIdle;
+		if (sfxFilesIdle == 0)
+		{
+			sfxFilesIdle = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesIdle));
+		}
+		nextTrack = sfxFilesIdle == 0 ? -1 : random(0, sfxFilesIdle);
+		break;
+	case SFX_GAME:
+		nextFolder = sfxFolderGame;
+		if (sfxFilesGame == 0)
+		{
+			sfxFilesGame = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesGame));
+		}
+		nextTrack = sfxFilesGame == 0 ? -1 : random(0, sfxFilesGame);
+		break;
+	case SFX_GOAL:
+		nextFolder = sfxFolderGoal;
+		if (sfxFilesGoal == 0)
+		{
+			sfxFilesGoal = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesGoal));
+		}
+		nextTrack = sfxFilesGoal == 0 ? -1 : random(0, sfxFilesGoal);
+		break;
+	case SFX_CELEBRATION:
+		nextFolder = sfxFolderCelebration;
+		if (sfxFilesCelebration == 0)
+		{
+			sfxFilesCelebration = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesCelebration));
+		}
+		nextTrack = sfxFilesCelebration == 0 ? -1 : random(0, sfxFilesCelebration);
+		break;
+	case SFX_OVER:
+		nextFolder = sfxFolderOver;
+		if (sfxFilesOver == 0)
+		{
+			sfxFilesOver = dfPlayer.getFolderTrackCount(nextFolder);
+			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesOver));
+		}
+		nextTrack = sfxFilesOver == 0 ? -1 : random(0, sfxFilesOver);
+		break;
+	}
+
+	if (nextTrack >= 0)
+	{
+		DEBUG_PRINTLN("MP3: Playing folder " + String(nextFolder) + ", track " + String(1 + nextTrack) + "...");
+		dfPlayer.playFolderTrack(nextFolder, 1 + nextTrack);
+
+		uint16_t currTrack = dfPlayer.getCurrentTrack();
+		DEBUG_PRINTLN("MP3: Track playing " + String(currTrack));
+	}
+
+	// ResetNextSfxRequest();
+
+	DEBUG_PRINTLN("MP3: Getting status...");
+	uint16_t status = dfPlayer.getStatus();
+	DEBUG_PRINTLN("MP3: Status " + String(status));
+	// if ((status & 0x0001) != 0x001)
+	// {
+	// 	DEBUG_PRINTLN("MP3: Not playing, requesting new track...");
+	// 	RequestNextSfx();
+	// }
+
+	sfxWatchdogCheckAt = millis() + sfxWatchdogDelay;
+	sfxWatchdogEnabled = true;
+}
+
+void CheckSfxWatchdog()
+{
+	if (!sfxWatchdogEnabled)
+		return;
+	if (sfxWatchdogCheckAt == 0 || millis() < sfxWatchdogCheckAt)
+		return;
+
+	sfxWatchdogCheckAt = 0;
+	sfxWatchdogEnabled = false;
+
+	bool playerIsBusy = !digitalRead(MP3_BUSY_PIN);
+	if (playerIsBusy)
+	{
+		DEBUG_PRINTLN("MP3: Watchdog >> player active, OK.");
+		return;
+	}
+
+	DEBUG_PRINTLN("MP3: Watchdog >> not playing, requesting new track.");
+	RequestNextSfx();
+}
+
+void SwitchSfxMode(sfxMode sfxModeNext)
+{
+	DEBUG_PRINTLN("MP3: Switching mode to " + String(sfxModeNext) + "...");
+	sfxModeCurrent = sfxModeNext;
+	sfxModeSwitched = true;
+	sfxBusyReleasedAt = millis();
+	RequestNextSfx();
+}
+
+void onDfPlayerBusyReleased()
+{
+	if (!sfxModeSwitched &&
+		millis() < (sfxBusyReleasedAt + sfxBusyReleasedDelay))
+	{
+		DEBUG_PRINTLN("MP3: IGNORING release of BUSY signal.");
+		return;
+	}
+
+	DEBUG_PRINTLN("MP3: BUSY signal released...");
+	sfxBusyReleasedAt = millis();
+	RequestNextSfx();
+}
+
+void SetupMp3Player()
+{
+	pinMode(MP3_BUSY_PIN, INPUT_PULLUP);
+	attachInterrupt(MP3_BUSY_PIN, onDfPlayerBusyReleased, RISING);
+
+	delay(1000);
+
+	DEBUG_PRINTLN("MP3: Configuring SoftSerial...");
+	dfSoftSerial.begin(9600);
+	dfSoftSerial.setTimeout(600);
+
+	DEBUG_PRINTLN("MP3: Initializing...");
+	dfPlayer.begin();
+	DEBUG_PRINTLN("MP3: Resetting...");
+	dfPlayer.reset();
+
+	delay(1000);
+
+	DEBUG_PRINTLN("MP3: Getting status...");
+	uint16_t status = dfPlayer.getStatus();
+	DEBUG_PRINTLN("MP3: Status " + String(status));
+
+	DEBUG_PRINTLN("MP3: Changing volume...");
+	dfPlayer.setVolume(sfxVolume);
+	uint16_t volume = dfPlayer.getVolume();
+	DEBUG_PRINTLN("MP3: Volume " + String(volume));
+
+	DEBUG_PRINTLN("MP3: Getting number of MP3s...");
+	uint16_t count = dfPlayer.getTotalTrackCount();
+	DEBUG_PRINTLN("MP3: Files " + String(count));
+
+	DEBUG_PRINTLN("MP3: Setting repeat mode...");
+	dfPlayer.setRepeatPlay(false);
+	uint16_t mode = dfPlayer.getPlaybackMode();
+	DEBUG_PRINTLN("MP3: Playback mode " + String(mode));
+
+	DEBUG_PRINTLN("MP3: Setting equalizer...");
+	dfPlayer.setEq(DfMp3_Eq_Normal);
+	DfMp3_Eq eqmode = dfPlayer.getEq();
+	DEBUG_PRINTLN("MP3: EQ " + String(eqmode));
+
+	SwitchSfxMode(SFX_START);
+	PlayNextSfx();
+
+	DEBUG_PRINTLN("MP3: Setup finished!");
+}
+
+void RunMp3PlayerLoop()
+{
+	// calling dfPlayer.loop() periodically allows for notifications
+	// to be handled without interrupts
+	dfPlayer.loop();
+}
+#endif
+#pragma endregion
+
+// **************************************************
 // *** Application Setup
 // **************************************************
 #pragma region Application Setup
@@ -1443,6 +1805,10 @@ void setup()
 																			//expander.attachInterrupt(5, onGoalSensorTeam2, FALLING); // IR _interruption_ trigger pulls DOWN
 #endif
 
+#ifdef MP3_PLAYER
+	SetupMp3Player();
+#endif
+
 	DEBUG_PRINTLN("PCF8574: attaching main/cfg buttons.");
 	expander.attachInterrupt(BUTTON_MAIN_PIN, onMainButton, CHANGE);		 // Main button; must be able to handle long press to reset
 	expander.attachInterrupt(BUTTON_SETTINGS_PIN, onSettingsButton, RISING); // Settings button; safer to handle when released
@@ -1470,7 +1836,6 @@ void setup()
 		SetColors(grpNr, grpNr == 0 ? defaultColPalAll : defaultColPal, true, 0, false);
 		SetEffect(grpNr, grpNr == 0 ? defaultFxNrAll : defaultFxNr, startFx, grpNr == 0);
 	}
-
 	changeGamePhase(gamePhase::GAME_IDLE);
 
 	drawDisplay();
@@ -1574,6 +1939,20 @@ void loop()
 	{
 		////DEBUG_PRINTLN("Loop: LEDs not started, leaving loop.");
 	}
+
+#ifdef MP3_PLAYER
+	RunMp3PlayerLoop();
+
+	if (sfxWatchdogEnabled)
+	{
+		CheckSfxWatchdog();
+	}
+
+	if (sfxNextRequested)
+	{
+		PlayNextSfx();
+	}
+#endif
 
 	// REQUIRED: allow processing of interrupts etc
 	delay(0);
