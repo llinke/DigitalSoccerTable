@@ -161,6 +161,9 @@ volatile bool sfxModeSwitched = false;
 volatile bool sfxNextRequested = false;
 volatile int sfxBusyReleasedAt = millis();
 volatile int sfxBusyReleasedDelay = 2 * 1000;
+volatile bool sfxWatchdogEnabled = false;
+volatile int sfxWatchdogCheckAt = 0;
+const int sfxWatchdogDelay = 1000;
 const uint8_t sfxVolume = 8;
 
 void RequestNextSfx()
@@ -1567,7 +1570,7 @@ void PlayNextSfx()
 			sfxFilesStart = dfPlayer.getFolderTrackCount(nextFolder);
 			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesStart));
 		}
-		nextTrack = random(0, sfxFilesStart);
+		nextTrack = sfxFilesStart == 0 ? -1 : random(0, sfxFilesStart);
 		break;
 	case SFX_IDLE:
 		nextFolder = sfxFolderIdle;
@@ -1576,7 +1579,7 @@ void PlayNextSfx()
 			sfxFilesIdle = dfPlayer.getFolderTrackCount(nextFolder);
 			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesIdle));
 		}
-		nextTrack = random(0, sfxFilesIdle);
+		nextTrack = sfxFilesIdle == 0 ? -1 : random(0, sfxFilesIdle);
 		break;
 	case SFX_GAME:
 		nextFolder = sfxFolderGame;
@@ -1585,7 +1588,7 @@ void PlayNextSfx()
 			sfxFilesGame = dfPlayer.getFolderTrackCount(nextFolder);
 			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesGame));
 		}
-		nextTrack = random(0, sfxFilesGame);
+		nextTrack = sfxFilesGame == 0 ? -1 : random(0, sfxFilesGame);
 		break;
 	case SFX_GOAL:
 		nextFolder = sfxFolderGoal;
@@ -1594,7 +1597,7 @@ void PlayNextSfx()
 			sfxFilesGoal = dfPlayer.getFolderTrackCount(nextFolder);
 			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesGoal));
 		}
-		nextTrack = random(0, sfxFilesGoal);
+		nextTrack = sfxFilesGoal == 0 ? -1 : random(0, sfxFilesGoal);
 		break;
 	case SFX_CELEBRATION:
 		nextFolder = sfxFolderCelebration;
@@ -1603,7 +1606,7 @@ void PlayNextSfx()
 			sfxFilesCelebration = dfPlayer.getFolderTrackCount(nextFolder);
 			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesCelebration));
 		}
-		nextTrack = random(0, sfxFilesCelebration);
+		nextTrack = sfxFilesCelebration == 0 ? -1 : random(0, sfxFilesCelebration);
 		break;
 	case SFX_OVER:
 		nextFolder = sfxFolderOver;
@@ -1612,21 +1615,53 @@ void PlayNextSfx()
 			sfxFilesOver = dfPlayer.getFolderTrackCount(nextFolder);
 			DEBUG_PRINTLN("MP3: Number of files in folder " + String(nextFolder) + ": " + String(sfxFilesOver));
 		}
-		nextTrack = random(0, sfxFilesOver);
+		nextTrack = sfxFilesOver == 0 ? -1 : random(0, sfxFilesOver);
 		break;
 	}
 
-	DEBUG_PRINTLN("MP3: Playing folder " + String(nextFolder) + ", track " + String(1 + nextTrack) + "...");
-	dfPlayer.playFolderTrack(nextFolder, 1 + nextTrack);
+	if (nextTrack >= 0)
+	{
+		DEBUG_PRINTLN("MP3: Playing folder " + String(nextFolder) + ", track " + String(1 + nextTrack) + "...");
+		dfPlayer.playFolderTrack(nextFolder, 1 + nextTrack);
 
-	uint16_t currTrack = dfPlayer.getCurrentTrack();
-	DEBUG_PRINTLN("MP3: Track playing " + String(currTrack));
+		uint16_t currTrack = dfPlayer.getCurrentTrack();
+		DEBUG_PRINTLN("MP3: Track playing " + String(currTrack));
+	}
 
 	// ResetNextSfxRequest();
 
-	// DEBUG_PRINTLN("MP3: Getting status...");
-	// uint16_t status = dfPlayer.getStatus();
-	// DEBUG_PRINTLN("MP3: Status " + String(status));
+	DEBUG_PRINTLN("MP3: Getting status...");
+	uint16_t status = dfPlayer.getStatus();
+	DEBUG_PRINTLN("MP3: Status " + String(status));
+	// if ((status & 0x0001) != 0x001)
+	// {
+	// 	DEBUG_PRINTLN("MP3: Not playing, requesting new track...");
+	// 	RequestNextSfx();
+	// }
+
+	sfxWatchdogCheckAt = millis() + sfxWatchdogDelay;
+	sfxWatchdogEnabled = true;
+}
+
+void CheckSfxWatchdog()
+{
+	if (!sfxWatchdogEnabled)
+		return;
+	if (sfxWatchdogCheckAt == 0 || millis() < sfxWatchdogCheckAt)
+		return;
+
+	sfxWatchdogCheckAt = 0;
+	sfxWatchdogEnabled = false;
+
+	bool playerIsBusy = !digitalRead(MP3_BUSY_PIN);
+	if (playerIsBusy)
+	{
+		DEBUG_PRINTLN("MP3: Watchdog >> player active, OK.");
+		return;
+	}
+
+	DEBUG_PRINTLN("MP3: Watchdog >> not playing, requesting new track.");
+	RequestNextSfx();
 }
 
 void SwitchSfxMode(sfxMode sfxModeNext)
@@ -1897,6 +1932,11 @@ void loop()
 
 #ifdef MP3_PLAYER
 	RunMp3PlayerLoop();
+
+	if (sfxWatchdogEnabled)
+	{
+		CheckSfxWatchdog();
+	}
 
 	if (sfxNextRequested)
 	{
