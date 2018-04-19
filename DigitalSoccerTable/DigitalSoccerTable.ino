@@ -7,7 +7,7 @@
 // --- WiFi -----------------------------------------
 //#define INCLUDE_WIFI
 // --- DEBUG ----------------------------------------
-#define ENABLE_SERIAL_DEBUG
+//#define ENABLE_SERIAL_DEBUG
 // --- Demo -----------------------------------------
 #define PLAY_DEMO true
 // --- MP3 Player -----------------------------------
@@ -23,6 +23,7 @@
 #define BUTTON_SETTINGS_PIN 2
 #define BUTTON_GOAL1_PIN 3
 #define BUTTON_GOAL2_PIN 0
+#define BUTTON_GOAL_SWITCH_LOGIC
 #ifdef SENSORS_ON_I2C
 #define SENSOR1_GOAL1_PIN 7
 #define SENSOR2_GOAL1_PIN 6
@@ -1267,6 +1268,7 @@ void drawDisplay()
 	// Alternative 2: highlight headers by filled rectangle
 	display.setColor(OLEDDISPLAY_COLOR::INVERSE);
 	display.fillRect(0, 0, 128, 14);
+
 	// Outline around whole display
 	display.setColor(OLEDDISPLAY_COLOR::WHITE);
 	display.drawRect(0, 0, 128, 64);
@@ -1295,7 +1297,11 @@ void onGoalButtonTeam1()
 {
 	if (gameRunning)
 	{
+#ifdef BUTTON_GOAL_SWITCH_LOGIC
+		goalScoredByTeam(1);
+#else
 		goalScoredByTeam(0);
+#endif
 	}
 	else
 	{
@@ -1306,7 +1312,11 @@ void onGoalButtonTeam2()
 {
 	if (gameRunning)
 	{
+#ifdef BUTTON_GOAL_SWITCH_LOGIC
+		goalScoredByTeam(0);
+#else
 		goalScoredByTeam(1);
+#endif
 	}
 	else
 	{
