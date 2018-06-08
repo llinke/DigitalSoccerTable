@@ -7,11 +7,11 @@
 
 #define DUMP_PALETTE
 
-#define BOOST_COLORS
+//#define BOOST_COLORS
 #define BOOST_SAT_MIN 160
-#define BOOST_SAT_INCR 64
+#define BOOST_SAT_INCR 16
 #define BOOST_VAL_MIN 128
-#define BOOST_VAL_INCR 32
+#define BOOST_VAL_INCR 16
 
 // Helper macro
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
@@ -171,7 +171,7 @@ CRGB BoostColor(CRGB origrgbcolor)
     {
         if (rgbcolor.r == rgbcolor.g && rgbcolor.g == rgbcolor.b)
         {
-            DEBUG_PRINT("   Keeping 0x");
+            DEBUG_PRINT("Boost: Keeping 0x");
             PrintHex8(rgbcolor.r);
             PrintHex8(rgbcolor.g);
             PrintHex8(rgbcolor.b);
@@ -179,24 +179,24 @@ CRGB BoostColor(CRGB origrgbcolor)
         }
         else
         {
-            DEBUG_PRINT("   Boosting 0x");
+            DEBUG_PRINT("Boost: Boosting 0x");
             PrintHex8(rgbcolor.r);
             PrintHex8(rgbcolor.g);
             PrintHex8(rgbcolor.b);
             DEBUG_PRINT(",");
+            DEBUG_PRINT(" S:");
+            DEBUG_PRINT(hsvcolor.s);
             if (hsvcolor.s < BOOST_SAT_MIN)
             {
-                DEBUG_PRINT(" S:");
-                DEBUG_PRINT(hsvcolor.s);
                 DEBUG_PRINT("->");
                 while (hsvcolor.s < BOOST_SAT_MIN)
                     hsvcolor.s += BOOST_SAT_INCR;
                 DEBUG_PRINT(hsvcolor.s);
             }
+            DEBUG_PRINT(", V:");
+            DEBUG_PRINT(hsvcolor.v);
             if (hsvcolor.v < BOOST_VAL_MIN)
             {
-                DEBUG_PRINT(" V:");
-                DEBUG_PRINT(hsvcolor.v);
                 DEBUG_PRINT("->");
                 while (hsvcolor.v < BOOST_VAL_MIN)
                     hsvcolor.v += BOOST_VAL_INCR;
@@ -212,7 +212,7 @@ CRGB BoostColor(CRGB origrgbcolor)
     }
     else
     {
-        DEBUG_PRINT("   Keeping 0x");
+        DEBUG_PRINT("Boost: Keeping 0x");
         PrintHex8(rgbcolor.r);
         PrintHex8(rgbcolor.g);
         PrintHex8(rgbcolor.b);
@@ -220,14 +220,6 @@ CRGB BoostColor(CRGB origrgbcolor)
         uint8_t minVal = BOOST_VAL_MIN;
         DEBUG_PRINTLN(", S:" + String(hsvcolor.s) + ">" + String(minSat) + " and V:" + String(hsvcolor.v) + ">" + String(minVal) + ".");
     }
-    // rgbcolor.r = (rgbcolor.r & 0xfe) >> 1;
-    // rgbcolor.g = (rgbcolor.g & 0xfe) >> 1;
-    // rgbcolor.b = (rgbcolor.b & 0xfe) >> 1;
-    // DEBUG_PRINT("   Final: 0x");
-    // PrintHex8(rgbcolor.r);
-    // PrintHex8(rgbcolor.g);
-    // PrintHex8(rgbcolor.b);
-    // DEBUG_PRINTLN(".");
 #endif
     return rgbcolor;
 }
