@@ -19,7 +19,14 @@
 static std::vector<String> CommonColorNames;
 static std::map<String, std::vector<CRGB>> CommonColorPalettes;
 
+const CRGB LED_BLACK = 0x000000;
+const CRGB LED_GRAY_DARK = 0x101010;
+const CRGB LED_GRAY_MEDIUM = 0x202020;
+const CRGB LED_GRAY_LIGHT = 0x404040;
+const CRGB LED_WHITE = 0xFFFFFF;
+
 const std::vector<String> WorldCupTeamKeys = {
+    // "TEST1", "TEST2",
     "RUS", "KSA", "EGY", "URU", // Group A
     "POR", "ESP", "MAR", "IRN", // Group B
     "FRA", "AUS", "PER", "DEN", // Group C
@@ -32,6 +39,8 @@ const std::vector<String> WorldCupTeamKeys = {
 
 const std::map<String, String> WorldCupTeamNames =
     {
+        // {"TEST1", "Test 1"},
+        // {"TEST2", "Test 2"},
         {"RUS", "Russland"},
         {"KSA", "S.Arabien"},
         {"EGY", "Ägypten"},
@@ -40,21 +49,21 @@ const std::map<String, String> WorldCupTeamNames =
         {"ESP", "Spanien"},
         {"MAR", "Marokko"},
         {"IRN", "Iran"},
-        {"FRA", "Frankr."},
-        {"AUS", "Austral."},
+        {"FRA", "Frankreich"},
+        {"AUS", "Australien"},
         {"PER", "Peru"},
-        {"DEN", "Dänem."},
-        {"ARG", "Argentin."},
+        {"DEN", "Dänemark"},
+        {"ARG", "Argentinien"},
         {"ISL", "Island"},
         {"CRO", "Kroatien"},
         {"NGA", "Nigeria"},
         {"BRA", "Brasilien"},
         {"SUI", "Schweiz"},
-        {"CRC", "C. Rica"},
+        {"CRC", "Costa Rica"},
         {"SRB", "Serbien"},
-        {"GER", "Deutschl."},
+        {"GER", "Deutschland"},
         {"MEX", "Mexiko"},
-        {"SWE", "Schwed."},
+        {"SWE", "Schweden"},
         {"KOR", "Korea"},
         {"BEL", "Belgien"},
         {"PAN", "Panama"},
@@ -68,9 +77,11 @@ const std::map<String, String> WorldCupTeamNames =
 
 const std::map<String, std::vector<CRGB>> WorldCupTeamColors =
     {
+        // {"TEST1", {0xFFFFFF, 0x808080, 0x404040}},
+        // {"TEST2", {0x404040, 0x202020, 0x101010}},
         {"RUS", {0xFFFFFF, 0x0039A6, 0xD52B1E}},
         {"KSA", {0x006C35, 0xFFFFFF, 0x006C35}},
-        {"EGY", {0xCE1126, 0xFFFFFF, 0x101010 /*0x000000*/}},
+        {"EGY", {0xCE1126, 0xFFFFFF, 0x080808 /*0x000000*/}},
         {"URU", {0x0038A8, 0xFFFFFF, 0xFCD116}},
         {"POR", {0x006600, 0xFF0000, 0xFFFF00}},
         {"ESP", {0xC60B1E, 0xFFC400, 0xC60B1E}},
@@ -88,11 +99,11 @@ const std::map<String, std::vector<CRGB>> WorldCupTeamColors =
         {"SUI", {0xD52B1E, 0xFFFFFF, 0xD52B1E}},
         {"CRC", {0x002B7F, 0xFFFFFF, 0xCE1126}},
         {"SRB", {0xC6363C, 0x0C4076, 0xFFFFFF}},
-        {"GER", {0x101010 /*0x000000*/, 0xDD0000, 0xFFCE00}},
+        {"GER", {0x080808 /*0x000000*/, 0xDD0000, 0xFFCE00}},
         {"MEX", {0x006847, 0xFFFFFF, 0xCE1126}},
         {"SWE", {0x006BA8, 0xFECD01, 0x006BA8}},
         {"KOR", {0xFFFFFF, 0xC60C30, 0x003478}},
-        {"BEL", {0x101010 /*0x000000*/, 0xFAE042, 0xED2939}},
+        {"BEL", {0x080808 /*0x000000*/, 0xFAE042, 0xED2939}},
         {"PAN", {0x005293, 0xFFFFFF, 0xD21034}},
         {"TUN", {0xE70013, 0xFFFFFF, 0xE70013}},
         {"ENG", {0xFFFFFF, 0xCF081F, 0xFFFFFF}},
@@ -102,8 +113,9 @@ const std::map<String, std::vector<CRGB>> WorldCupTeamColors =
         {"JPN", {0xFFFFFF, 0xBC002D, 0xFFFFFF}},
 };
 
-static uint8_t WorldCupTeamValues[] = {20, 16}; // GER, BRA
-static String WorldCupTeamLabels[] = {"", ""};  // GER, BRA
+// static uint8_t WorldCupTeamValues[] = {1, 0}; // TEST2, TEST1
+static uint8_t WorldCupTeamValues[] = {16, 20}; // BRA, GER
+static String WorldCupTeamLabels[] = {"", ""};
 
 static std::map<String, std::vector<CRGB>> TeamColorPalettes[] =
     {
@@ -337,52 +349,52 @@ static void CreateTeamColorPalettes(int teamNr)
     std::vector<CRGB> teamColors = WorldCupTeamColors.find(teamKey)->second;
     TeamColorPalettes[teamNr]["Idle"] = //AnalogousPaletteFromHue(TeamHueValues[teamNr]);
         {
-            0x000000, // Black
+            LED_BLACK,
             BoostColor(teamColors.at(0)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(2)),
-            // 0x404040, // Medium Gray
-            0x202020, // Dark Gray
+            LED_GRAY_MEDIUM,
+            // LED_GRAY_DARK,
+            // LED_GRAY_LIGHT,
             BoostColor(teamColors.at(2)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(0))};
     TeamColorPalettes[teamNr]["KickOff"] =
         {
-            0x000000, // Black
+            LED_BLACK,
             BoostColor(teamColors.at(0)),
-            0x000000, // Black
-            0x000000, // Black
-            0x000000, // Black
+            LED_BLACK,
+            LED_BLACK,
+            LED_BLACK,
             BoostColor(teamColors.at(1)),
-            0x000000, // Black
-            0x000000, // Black
+            LED_BLACK,
+            LED_BLACK,
             BoostColor(teamColors.at(2)),
-            0x000000, // Black
+            LED_BLACK,
             BoostColor(teamColors.at(0)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(2)),
             0x000000};
     TeamColorPalettes[teamNr]["InGame"] =
         {
-            0x000000, // Black
+            LED_BLACK,
             BoostColor(teamColors.at(0)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(2)),
-            // 0x404040, // Medium Gray
-            0x202020, // Dark Gray
+            LED_GRAY_MEDIUM,
             // BoostColor(teamColors.at(0)),
-            // 0x404040, // Medium Gray
+            // LED_GRAY_MEDIUM,
             BoostColor(teamColors.at(2)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(0))};
     TeamColorPalettes[teamNr]["Goal"] =
         {
-            0x000000, // Black
-            0x404040, // Medium Gray
-            0x404040, // Medium Gray
-            0xFFFFFF, // White
-            0xFFFFFF, // White
-            0xFFFFFF, // White
+            LED_BLACK,
+            LED_GRAY_MEDIUM,
+            LED_GRAY_MEDIUM,
+            LED_WHITE,
+            LED_WHITE,
+            LED_WHITE,
             BoostColor(teamColors.at(0)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(2))};
@@ -391,34 +403,33 @@ static void CreateTeamColorPalettes(int teamNr)
             BoostColor(teamColors.at(2)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(0)),
-            // 0x404040, // Medium Gray
-            0x202020, // Dark Gray
+            LED_GRAY_MEDIUM,
+            // LED_GRAY_DARK,
             BoostColor(teamColors.at(0)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(2))};
     TeamColorPalettes[teamNr]["Celebration"] =
         {
-            // 0x000000, // Black
+            // LED_BLACK,
             // BoostColor(teamColors.at(0)),
-            // 0x404040, // Medium Gray
+            // LED_GRAY_MEDIUM,
             BoostColor(teamColors.at(0)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(2)),
-            0x202020, // Dark Gray
+            LED_GRAY_DARK,
             BoostColor(teamColors.at(2)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(0)),
-            //0x202020, // Dark Gray
+            //LED_GRAY_DARK,
             //BoostColor(teamColors.at(0)),
-            // 0x202020, // Dark Gray
-            0x000000, // Black
+            // LED_GRAY_DARK,
+            LED_BLACK,
             BoostColor(teamColors.at(0)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(2)),
             BoostColor(teamColors.at(1)),
             BoostColor(teamColors.at(0)),
-            0x404040 // Medium Gray
-        };
+            LED_GRAY_MEDIUM};
 }
 
 void InitColorPalettes()

@@ -18,8 +18,8 @@
 #define MP3_BUSY_PIN D7
 #endif
 // --- Buttons --------------------------------------
-#define SENSORS_ON_I2C
-//#define SWAP_BUTTONS
+//#define SENSORS_ON_I2C
+#define SWAP_BUTTONS
 #define BUTTON_MAIN_PIN 1
 #define BUTTON_SETTINGS_PIN 2
 
@@ -116,8 +116,8 @@ const int gameTimeAbsMin = 60 * 1;		 //4; // min X min
 const int gameTimeAbsMax = 60 * 15;		 // max X min
 const int gameTimeDefault = 60 * 6;		 // default X min
 
-const uint8_t globalBrightness = 128;
 // const uint8_t globalBrightness = 255;
+const uint8_t globalBrightness = 128;
 
 // 0: Wave, 1: Dynamic Wave, 2: Noise, 3: Confetti, 4: Fade, 5: Comet, 6: Orbit, 7: Fill
 const uint8_t fxNrWave = 0;
@@ -454,8 +454,8 @@ int initStrip(bool doStart = false, bool playDemo = true)
 #else
 	addGroup("All LEDs' group", 0, PIXEL_COUNT, 0);
 #endif
-	addGroup("Team 1 group", 0, PIXEL_COUNT / 2, 0);
-	addGroup("Team 2 group", PIXEL_COUNT / 2, PIXEL_COUNT / 2, 0);
+	addGroup("Team 1 group", PIXEL_COUNT / 2, PIXEL_COUNT / 2, 0);
+	addGroup("Team 2 group", 0, PIXEL_COUNT / 2, 0);
 
 	return doStart ? startStrip() : PIXEL_COUNT;
 }
@@ -621,7 +621,8 @@ void SetEffect(int grpNr, int fxNr,
 		fxPatternName = "Confetti";
 		fxPattern = pattern::CONFETTI;
 		fxGlitter = 0;
-		fxFps /= 2; // half FPS looks better
+		// Not in this case :-p
+		// fxFps /= 2; // half FPS looks better
 		break;
 	case fxNrFade:
 		fxPatternName = "Fade";
@@ -884,7 +885,7 @@ void playGamePhaseGoal()
 		SetColors(0, "Goal", false, currentGamePhaseTeamNr, true);
 		SetEffect(0, fxGamePhaseGoal,
 				  true, true,
-				  currentGamePhaseTeamNr == 0 ? direction::FORWARD : direction::REVERSE,
+				  currentGamePhaseTeamNr == 0 ? direction::REVERSE : direction::FORWARD,
 				  defaultGlitter,
 				  50,
 				  2);
@@ -933,7 +934,7 @@ void playGamePhaseGoal()
 		SetColors(0, "Goal2", false, currentGamePhaseTeamNr, true);
 		SetEffect(0, fxGamePhaseGoal2,
 				  true, true,
-				  currentGamePhaseTeamNr == 0 ? direction::REVERSE : direction::FORWARD,
+				  currentGamePhaseTeamNr == 0 ? direction::FORWARD : direction::REVERSE,
 				  defaultGlitter,
 				  75,
 				  2);
@@ -1222,15 +1223,14 @@ void drawDisplay()
 	display.setColor(OLEDDISPLAY_COLOR::WHITE);
 	display.setTextAlignment(TEXT_ALIGN_CENTER);
 	//display.drawString(64, 0, ":");
-	display.setFont(Dialog_plain_12);
-	// display.setFont(Nimbus_Sans_L_Regular_Condensed_12);
+	display.setFont(Roboto_Condensed_12);
 	// display.drawString(32, 0, teamKeys[0]);
 	// display.drawString(96, 0, teamKeys[1]);
 	display.drawString(32, 0, teamNames[0]);
 	display.drawString(96, 0, teamNames[1]);
 
 	// -- GOALS ("0 : 0")
-	display.setFont(Nimbus_Sans_L_Regular_Condensed_32);
+	display.setFont(Roboto_Condensed_32);
 	char goals_str[3];
 	display.setTextAlignment(TEXT_ALIGN_CENTER);
 	display.drawString(64, 12, ":");
@@ -1257,8 +1257,8 @@ void drawDisplay()
 			display.fillRect(0, 50, progbar, 14);
 		}
 	}
-	display.setFont(Dialog_plain_12);
-	// display.setFont(Nimbus_Sans_L_Regular_Condensed_12);
+	display.setFont(Roboto_12);
+	// display.setFont(Roboto_Condensed_12);
 	char time_str[6];
 	int time_s = gameTimeRemain % 60;
 	int time_m = (gameTimeRemain - time_s) / 60;
@@ -1334,7 +1334,11 @@ void onGoalButtonTeam1()
 	}
 	else
 	{
+#ifdef BUTTON_GOAL_SWITCH_LOGIC
+		changeColorForTeam = 1;
+#else
 		changeColorForTeam = 0;
+#endif
 	}
 }
 void onGoalButtonTeam2()
@@ -1349,7 +1353,11 @@ void onGoalButtonTeam2()
 	}
 	else
 	{
+#ifdef BUTTON_GOAL_SWITCH_LOGIC
+		changeColorForTeam = 0;
+#else
 		changeColorForTeam = 1;
+#endif
 	}
 }
 void onGoalSensorTeam1()

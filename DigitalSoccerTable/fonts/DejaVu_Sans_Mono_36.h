@@ -1,6 +1,6 @@
 // Created by http://oleddisplay.squix.ch/ Consider a donation
 // In case of problems make sure that you are using the font file with the correct version!
-const char DejaVu_Sans_Mono_36[] PROGMEM = {
+const uint8_t DejaVu_Sans_Mono_36[] PROGMEM = {
 	0x16, // Width: 22
 	0x2B, // Height: 43
 	0x20, // First Char: 32
