@@ -3,8 +3,10 @@
 // **************************************************
 #include "Wire.h"
 #include "SSD1306Wire.h"
-#include "fonts/Dialog_plain_12.h"
-#include "fonts/Nimbus_Sans_L_Regular_Condensed_32.h"
+// #include "fonts/Dialog_plain_12.h"
+#include "fonts/Roboto_12.h"
+#include "fonts/Roboto_Condensed_12.h"
+#include "fonts/Roboto_Condensed_32.h"
 #include "PCF8574.h"
 
 // Pin definitions for I2C OLED

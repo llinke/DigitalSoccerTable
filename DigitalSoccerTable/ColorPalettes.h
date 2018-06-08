@@ -7,10 +7,11 @@
 
 #define DUMP_PALETTE
 
+#define BOOST_COLORS
 #define BOOST_SAT_MIN 160
 #define BOOST_SAT_INCR 64
 #define BOOST_VAL_MIN 128
-#define BOOST_VAL_INCR 64
+#define BOOST_VAL_INCR 32
 
 #define HUE_VARIANT 16
 
@@ -66,6 +67,76 @@ void DumpPalette(std::vector<CRGB> pal)
     DEBUG_PRINTLN(".");
 }
 
+CRGB BoostColor(CRGB origrgbcolor)
+{
+    CRGB rgbcolor = origrgbcolor;
+#ifdef BOOST_COLORS
+    CHSV hsvcolor = rgb2hsv_approximate(rgbcolor);
+    if (hsvcolor.s < BOOST_SAT_MIN || hsvcolor.v < BOOST_VAL_MIN)
+    {
+        if (rgbcolor.r == rgbcolor.g && rgbcolor.g == rgbcolor.b)
+        {
+            DEBUG_PRINT("   Keeping 0x");
+            PrintHex8(rgbcolor.r);
+            PrintHex8(rgbcolor.g);
+            PrintHex8(rgbcolor.b);
+            DEBUG_PRINTLN(", pure grey/white.");
+        }
+        else
+        {
+            DEBUG_PRINT("   Boosting 0x");
+            PrintHex8(rgbcolor.r);
+            PrintHex8(rgbcolor.g);
+            PrintHex8(rgbcolor.b);
+            DEBUG_PRINT(",");
+            if (hsvcolor.s < BOOST_SAT_MIN)
+            {
+                DEBUG_PRINT(" S:");
+                DEBUG_PRINT(hsvcolor.s);
+                DEBUG_PRINT("->");
+                while (hsvcolor.s < BOOST_SAT_MIN)
+                    hsvcolor.s += BOOST_SAT_INCR;
+                DEBUG_PRINT(hsvcolor.s);
+            }
+            if (hsvcolor.v < BOOST_VAL_MIN)
+            {
+                DEBUG_PRINT(" V:");
+                DEBUG_PRINT(hsvcolor.v);
+                DEBUG_PRINT("->");
+                while (hsvcolor.v < BOOST_VAL_MIN)
+                    hsvcolor.v += BOOST_VAL_INCR;
+                DEBUG_PRINT(hsvcolor.v);
+            }
+            rgbcolor = CRGB(hsvcolor);
+            DEBUG_PRINT(", now 0x");
+            PrintHex8(rgbcolor.r);
+            PrintHex8(rgbcolor.g);
+            PrintHex8(rgbcolor.b);
+            DEBUG_PRINTLN(".");
+        }
+    }
+    else
+    {
+        DEBUG_PRINT("   Keeping 0x");
+        PrintHex8(rgbcolor.r);
+        PrintHex8(rgbcolor.g);
+        PrintHex8(rgbcolor.b);
+        uint8_t minSat = BOOST_SAT_MIN;
+        uint8_t minVal = BOOST_VAL_MIN;
+        DEBUG_PRINTLN(", S:" + String(hsvcolor.s) + ">" + String(minSat) + " and V:" + String(hsvcolor.v) + ">" + String(minVal) + ".");
+    }
+    // rgbcolor.r = (rgbcolor.r & 0xfe) >> 1;
+    // rgbcolor.g = (rgbcolor.g & 0xfe) >> 1;
+    // rgbcolor.b = (rgbcolor.b & 0xfe) >> 1;
+    // DEBUG_PRINT("   Final: 0x");
+    // PrintHex8(rgbcolor.r);
+    // PrintHex8(rgbcolor.g);
+    // PrintHex8(rgbcolor.b);
+    // DEBUG_PRINTLN(".");
+#endif
+    return rgbcolor;
+}
+
 void AddColorPalette(
     String palName,
     std::vector<CRGB> palColors,
@@ -81,58 +152,12 @@ void AddColorPalette(
     }
     else
     {
-        //rgb2hsv_approximate
         std::vector<CRGB> palColorsBoosted;
         CRGB rgbcolor;
-        CHSV hsvcolor;
         int colCount = palColors.size();
         for (int c = 0; c < colCount; c++)
         {
-            rgbcolor = palColors[c];
-            hsvcolor = rgb2hsv_approximate(rgbcolor);
-            if (hsvcolor.s < BOOST_SAT_MIN || hsvcolor.v < BOOST_VAL_MIN)
-            {
-                if (rgbcolor.r == rgbcolor.g && rgbcolor.g == rgbcolor.b)
-                {
-                    DEBUG_PRINT("   Keeping 0x");
-                    PrintHex8(rgbcolor.r);
-                    PrintHex8(rgbcolor.g);
-                    PrintHex8(rgbcolor.b);
-                    DEBUG_PRINTLN(", pure grey/white.");
-                }
-                else
-                {
-                    DEBUG_PRINT("   Boosting 0x");
-                    PrintHex8(rgbcolor.r);
-                    PrintHex8(rgbcolor.g);
-                    PrintHex8(rgbcolor.b);
-                    DEBUG_PRINT(",");
-                    if (hsvcolor.s < BOOST_SAT_MIN)
-                    {
-                        DEBUG_PRINT(" S:");
-                        DEBUG_PRINT(hsvcolor.s);
-                        DEBUG_PRINT("->");
-                        while (hsvcolor.s < BOOST_SAT_MIN)
-                            hsvcolor.s += BOOST_SAT_INCR;
-                        DEBUG_PRINT(hsvcolor.s);
-                    }
-                    if (hsvcolor.v < BOOST_VAL_MIN)
-                    {
-                        DEBUG_PRINT(" V:");
-                        DEBUG_PRINT(hsvcolor.v);
-                        DEBUG_PRINT("->");
-                        while (hsvcolor.v < BOOST_VAL_MIN)
-                            hsvcolor.v += BOOST_VAL_INCR;
-                        DEBUG_PRINT(hsvcolor.v);
-                    }
-                    rgbcolor = CRGB(hsvcolor);
-                    DEBUG_PRINT(", now 0x");
-                    PrintHex8(rgbcolor.r);
-                    PrintHex8(rgbcolor.g);
-                    PrintHex8(rgbcolor.b);
-                    DEBUG_PRINTLN(".");
-                }
-            }
+            rgbcolor = BoostColor(palColors[c]);
             palColorsBoosted.push_back(rgbcolor);
         }
         CommonColorPalettes[palName] = palColorsBoosted;
