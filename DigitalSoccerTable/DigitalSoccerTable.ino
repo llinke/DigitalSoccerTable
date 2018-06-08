@@ -18,17 +18,35 @@
 #define MP3_BUSY_PIN D7
 #endif
 // --- Buttons --------------------------------------
-//#define SENSORS_ON_I2C
+#define SENSORS_ON_I2C
+//#define SWAP_BUTTONS
 #define BUTTON_MAIN_PIN 1
 #define BUTTON_SETTINGS_PIN 2
+
+#ifdef SWAP_BUTTONS
 #define BUTTON_GOAL1_PIN 3
 #define BUTTON_GOAL2_PIN 0
+#else
+#define BUTTON_GOAL1_PIN 0
+#define BUTTON_GOAL2_PIN 3
+#endif
+
+#ifdef SWAP_BUTTONS
 #define BUTTON_GOAL_SWITCH_LOGIC
+#endif
+
 #ifdef SENSORS_ON_I2C
+#ifdef SWAP_BUTTONS
 #define SENSOR1_GOAL1_PIN 7
 #define SENSOR2_GOAL1_PIN 6
 #define SENSOR1_GOAL2_PIN 5
 #define SENSOR2_GOAL2_PIN 4
+#else
+#define SENSOR1_GOAL1_PIN 4
+#define SENSOR2_GOAL1_PIN 5
+#define SENSOR1_GOAL2_PIN 6
+#define SENSOR2_GOAL2_PIN 7
+#endif
 #endif
 #pragma endregion
 // **************************************************
@@ -99,7 +117,7 @@ const int gameTimeAbsMax = 60 * 15;		 // max X min
 const int gameTimeDefault = 60 * 6;		 // default X min
 
 const uint8_t globalBrightness = 128;
-const uint8_t teamHueChangeValue = 32;
+// const uint8_t globalBrightness = 255;
 
 // 0: Wave, 1: Dynamic Wave, 2: Noise, 3: Confetti, 4: Fade, 5: Comet, 6: Orbit, 7: Fill
 const uint8_t fxNrWave = 0;
@@ -235,8 +253,9 @@ volatile bool buttonsLocked = false;
 volatile int buttonsLockedAt = 0;
 
 // [Game Control]
-String teamName1 = "HEIM"; //"Dortmund";
-String teamName2 = "GAST"; //"Bayern";
+String teamKeys[] = {"HEIM", "GAST"};
+String teamNames[] = {"HEIM", "GAST"};
+// String teamNames[] = { "Dortmund", "Bayern"};
 volatile bool gameRunning = false;
 volatile bool gamePaused = false;
 volatile bool mainButtonReleased = false;
@@ -358,9 +377,9 @@ int initStrip(bool doStart = false, bool playDemo = true)
 	*/
 	DEBUG_PRINTLN("Assigning LEDs to FastLED.");
 	FastLED.addLeds<PIXEL_TYPE, PIXEL_PIN>(leds, PIXEL_COUNT);
-	//FastLED.setMaxPowerInVoltsAndMilliamps(5,3000);
 	FastLED.setBrightness(globalBrightness);
-	FastLED.setDither(0);
+	// FastLED.setMaxPowerInVoltsAndMilliamps(5,2000);
+	FastLED.setDither(BINARY_DITHER);
 	FastLED.clear(true);
 	FastLED.show();
 
@@ -661,6 +680,12 @@ void SetEffect(int grpNr, int fxNr,
 void InitColorNames()
 {
 	InitColorPalettes();
+	teamKeys[0] = WorldCupTeamKeys.at(WorldCupTeamValues[0]);
+	teamNames[0] = WorldCupTeamNames.find(teamKeys[0])->second;
+	DEBUG_PRINTLN("Changing team #1 to " + teamKeys[0] + " (" + teamNames[0] + ").");
+	teamKeys[1] = WorldCupTeamKeys.at(WorldCupTeamValues[1]);
+	teamNames[1] = WorldCupTeamNames.find(teamKeys[1])->second;
+	DEBUG_PRINTLN("Changing team #2 to " + teamKeys[1] + " (" + teamNames[1] + ").");
 }
 
 void SetColors(int grpNr, String palKey, bool crossFade = CROSSFADE_PALETTES, int teamNr = -1, bool useTeamPalForGrp0 = true)
@@ -1195,11 +1220,14 @@ void drawDisplay()
 
 	// -- HEADERS ("Heim" / "Gast")
 	display.setColor(OLEDDISPLAY_COLOR::WHITE);
-	display.setFont(Dialog_plain_12);
 	display.setTextAlignment(TEXT_ALIGN_CENTER);
 	//display.drawString(64, 0, ":");
-	display.drawString(32, 0, teamName1);
-	display.drawString(96, 0, teamName2);
+	display.setFont(Dialog_plain_12);
+	// display.setFont(Nimbus_Sans_L_Regular_Condensed_12);
+	// display.drawString(32, 0, teamKeys[0]);
+	// display.drawString(96, 0, teamKeys[1]);
+	display.drawString(32, 0, teamNames[0]);
+	display.drawString(96, 0, teamNames[1]);
 
 	// -- GOALS ("0 : 0")
 	display.setFont(Nimbus_Sans_L_Regular_Condensed_32);
@@ -1230,6 +1258,7 @@ void drawDisplay()
 		}
 	}
 	display.setFont(Dialog_plain_12);
+	// display.setFont(Nimbus_Sans_L_Regular_Condensed_12);
 	char time_str[6];
 	int time_s = gameTimeRemain % 60;
 	int time_m = (gameTimeRemain - time_s) / 60;
@@ -1900,12 +1929,17 @@ void loop()
 		{
 			int teamNr = changeColorForTeam;
 			changeColorForTeam = -1;
-			DEBUG_PRINT("Changing color of team #" + String(teamNr + 1) + " to ");
-			TeamHueValues[teamNr] += teamHueChangeValue;
-			PrintHex8(TeamHueValues[teamNr]);
-			DEBUG_PRINTLN(".");
+			WorldCupTeamValues[teamNr]++;
+			if (WorldCupTeamValues[teamNr] >= WorldCupTeamKeys.size())
+			{
+				WorldCupTeamValues[teamNr] = 0;
+			}
+			teamKeys[teamNr] = WorldCupTeamKeys.at(WorldCupTeamValues[teamNr]);
+			teamNames[teamNr] = WorldCupTeamNames.find(teamKeys[teamNr])->second;
+			DEBUG_PRINTLN("Changing team #" + String(teamNr + 1) + " to " + teamKeys[teamNr] + " (" + teamNames[teamNr] + ").");
 			CreateTeamColorPalettes(teamNr);
 			SetColors(teamNr + 1, "Idle");
+			updateOledRequired = true;
 		}
 
 		playGamePhase();
