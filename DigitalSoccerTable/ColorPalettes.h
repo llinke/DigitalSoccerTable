@@ -113,8 +113,8 @@ const std::map<String, std::vector<CRGB>> WorldCupTeamColors =
         {"JPN", {0xFFFFFF, 0xBC002D, 0xFFFFFF}},
 };
 
-// static uint8_t WorldCupTeamValues[] = {1, 0}; // TEST2, TEST1
-static uint8_t WorldCupTeamValues[] = {16, 20}; // BRA, GER
+// static uint8_t WorldCupTeamValues[] = {0, 1}; // TEST1, TEST2
+static uint8_t WorldCupTeamValues[] = {20, 16}; // GER, BRA
 static String WorldCupTeamLabels[] = {"", ""};
 
 static std::map<String, std::vector<CRGB>> TeamColorPalettes[] =
