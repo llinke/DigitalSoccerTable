@@ -7,7 +7,7 @@
 // --- WiFi -----------------------------------------
 //#define INCLUDE_WIFI
 // --- DEBUG ----------------------------------------
-//#define ENABLE_SERIAL_DEBUG
+#define ENABLE_SERIAL_DEBUG
 // --- Demo -----------------------------------------
 #define PLAY_DEMO true
 // --- MP3 Player -----------------------------------
@@ -269,6 +269,8 @@ volatile int currentGamePhaseTeamNr = -1;
 // [Goals / Standings]
 volatile bool wasGoal = false;
 volatile int wasGoalByTeam = -1;
+volatile bool resetGoal = false;
+volatile int canResetGoalForTeam = -1;
 volatile int goals[] = {0, 0};
 volatile bool lockedGoalTriggers = false;
 volatile uint32_t lockedGoalTriggersAt = 0;
@@ -1129,18 +1131,45 @@ void updateGoalStats()
 		return;
 
 	goals[wasGoalByTeam]++;
+
 	lockedGoalTriggers = true;
 	lockedGoalTriggersAt = millis();
+
 	gamePaused = true;
 	DEBUG_PRINTLN("Goal scored for team " + String(wasGoalByTeam + 1) + ", standing: " + String(goals[0]) + ":" + String(goals[1]) + ".");
 
+	resetGoal = false;
+	canResetGoalForTeam = wasGoalByTeam;
+
+	wasGoal = false;
 #ifdef MP3_PLAYER
 	SwitchSfxMode(SFX_GOAL);
 #endif
 	changeGamePhase(gamePhase::GAME_GOAL, wasGoalByTeam);
-
-	wasGoal = false;
 	wasGoalByTeam = -1;
+
+	// Require update of OLED display
+	updateOledRequired = true;
+}
+void resetGoalStats()
+{
+	if (!gameRunning)
+		return;
+	if (lockedGoalTriggers)
+		return;
+	if (!resetGoal)
+		return;
+
+	goals[canResetGoalForTeam]--;
+
+	DEBUG_PRINTLN("Goal reset for team " + String(canResetGoalForTeam + 1) + ", standing: " + String(goals[0]) + ":" + String(goals[1]) + ".");
+
+	resetGoal = false;
+#ifdef MP3_PLAYER
+	SwitchSfxMode(SFX_IDLE);
+#endif
+	changeGamePhase(gamePhase::GAME_PAUSED);
+	canResetGoalForTeam = -1;
 
 	// Require update of OLED display
 	updateOledRequired = true;
@@ -1188,10 +1217,16 @@ void resetGame()
 	// Reset game settings
 	gameRunning = false;
 	gamePaused = false;
+
+	wasGoal = false;
 	goals[0] = 0;
 	goals[1] = 0;
-	wasGoal = false;
+
 	wasGoalByTeam = -1;
+
+	resetGoal = false;
+	canResetGoalForTeam = -1;
+
 	lockedGoalTriggers = false;
 	lockedGoalTriggersAt = millis();
 
@@ -1324,40 +1359,39 @@ void ISRgateway()
 // [Goal Buttons/Sensors]
 void onGoalButtonTeam1()
 {
-	if (gameRunning)
-	{
 #ifdef BUTTON_GOAL_SWITCH_LOGIC
-		goalScoredByTeam(1);
+	onGoalButtonTeam(1);
 #else
-		goalScoredByTeam(0);
+	onGoalButtonTeam(0);
 #endif
-	}
-	else
-	{
-#ifdef BUTTON_GOAL_SWITCH_LOGIC
-		changeColorForTeam = 1;
-#else
-		changeColorForTeam = 0;
-#endif
-	}
 }
 void onGoalButtonTeam2()
 {
+#ifdef BUTTON_GOAL_SWITCH_LOGIC
+	onGoalButtonTeam(0);
+#else
+	onGoalButtonTeam(1);
+#endif
+}
+void onGoalButtonTeam(int team)
+{
 	if (gameRunning)
 	{
-#ifdef BUTTON_GOAL_SWITCH_LOGIC
-		goalScoredByTeam(0);
-#else
-		goalScoredByTeam(1);
-#endif
+		if (gamePaused)
+		{
+			if (canResetGoalForTeam == team)
+			{
+				resetGoal = true;
+			}
+		}
+		else
+		{
+			goalScoredByTeam(team);
+		}
 	}
 	else
 	{
-#ifdef BUTTON_GOAL_SWITCH_LOGIC
-		changeColorForTeam = 0;
-#else
-		changeColorForTeam = 1;
-#endif
+		changeColorForTeam = team;
 	}
 }
 void onGoalSensorTeam1()
@@ -1392,6 +1426,9 @@ void goalScoredByTeam(int team)
 
 	wasGoalByTeam = team;
 	wasGoal = true;
+
+	canResetGoalForTeam = team;
+	resetGoal = false;
 }
 
 // [Main Button]
@@ -1913,6 +1950,10 @@ void loop()
 	if (wasGoal)
 	{
 		updateGoalStats();
+	}
+	if (resetGoal)
+	{
+		resetGoalStats();
 	}
 	// if (lockedGoalTriggers &&
 	// 	((millis() - lockedGoalTriggersAt) > lockedGoalDuration))
