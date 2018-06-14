@@ -124,6 +124,7 @@ static std::map<String, std::vector<CRGB>> TeamColorPalettes[] =
             {"KickOff", {}},
             {"InGame", {}},
             {"Goal", {}},
+            {"Goal2", {}},
             {"Celebration", {}},
         },
         {
