@@ -1,9 +1,9 @@
 #include <Arduino.h>
 #include "SerialDebug.h"
 #include "FastLedInclude.h"
-//#include <ArduinoSTL.h>
+// #include <ArduinoSTL.h>
 #include <vector>
-//#include <map>
+// #include <map>
 
 // **************************************************
 // *** Serial Debugging
@@ -11,7 +11,7 @@
 #pragma region Serial Debug
 // Uncomment to enable printing debug messages.
 #ifdef ENABLE_SERIAL_DEBUG
-//#define ENABLE_SERIAL_DEBUG_GRP
+// #define ENABLE_SERIAL_DEBUG_GRP
 #endif
 #define DEBUG_GRP_PRINTER Serial
 #ifdef ENABLE_SERIAL_DEBUG_GRP
@@ -40,6 +40,8 @@
 #define FADEOUT_STEPS 16
 #define CROSSFADE_PALETTES false
 #define CROSSFADE_MAX_CHANGE_PER_STEP 16
+
+// #define FxColorWavesWithBrightness
 
 #pragma region Enums
 enum pattern
@@ -76,9 +78,9 @@ enum direction
 
 enum mirror
 {
-	MIRROR0,
-	MIRROR1,
-	MIRROR2
+	MIRROR0, // no mirroring
+	MIRROR1, // set even/odd as mirror values
+	MIRROR2  // mirror each second value
 };
 #pragma endregion
 
@@ -103,7 +105,7 @@ class NeoGroup
 	bool onlyOnce = false;
 
 	//std::vector<CRGB> currentColors = {};
-	bool crossFadeColors = false;
+	bool crossFadeColors = CROSSFADE_PALETTES; //false;
 	std::vector<CRGB> currentColors = {0x000000, 0x000000};
 	CRGBPalette16 colorPalette = CRGBPalette16();
 	CRGBPalette16 colorPaletteNew = CRGBPalette16();
@@ -243,7 +245,7 @@ class NeoGroup
 		std::vector<CRGB> colors,
 		bool clearFirst = true,
 		bool generatePalette = true,
-		bool crossFade = false)
+		bool crossFade = CROSSFADE_PALETTES)
 	{
 		DEBUG_GRP_PRINTLN("GRP[" + String(GroupID) + "].CfgColor: Configuring colors.");
 		if (clearFirst)
@@ -578,7 +580,7 @@ class NeoGroup
 #endif
 		for (int i = 0; i < LedCount; i++)
 		{
-			SetPixel((LedCount - 1) - i, newColor);
+			SetPixel(i, newColor);
 		}
 		//Stop();
 	}
@@ -595,9 +597,9 @@ class NeoGroup
 	void FxFill()
 	{
 #ifdef PIXEL_USE_OFFSET
-	// fadeToBlackBy(&leds[LedFirstNr], LedCount, 16 * fxSpeed);
+		// fadeToBlackBy(&leds[LedFirstNr], LedCount, 16 * fxSpeed);
 #else
-	// fadeToBlackBy(LedFirst, LedCount, 16 * fxSpeed);
+		// fadeToBlackBy(LedFirst, LedCount, 16 * fxSpeed);
 #endif
 		int fxStep2 = (fxDirection == REVERSE) ? 255 - fxStep : fxStep;
 		// uint8_t bri = map8(GetEasedFxStep(fxStep2), 32, 255);
@@ -750,7 +752,9 @@ class NeoGroup
 
 		uint8_t sat8 = beatsin88(87, 220, 250);
 		uint8_t brightdepth = beatsin88(341, 96, 224);
-		uint16_t brightnessthetainc16 = beatsin88(203, (25 * 256), (40 * 256));
+#ifdef FxColorWavesWithBrightness
+		uint16_t brightnessthetainc16 = beatsin88(203, (25 << 8), (40 << 8));
+#endif
 		uint8_t msmultiplier = beatsin88(147, 23, 60);
 
 		uint16_t hue16 = sHue16; //gHue * 256;
@@ -761,12 +765,15 @@ class NeoGroup
 		sLastMillis = ms;
 		sPseudotime += deltams * msmultiplier;
 		sHue16 += deltams * beatsin88(400, 5, 9);
+#ifdef FxColorWavesWithBrightness
 		uint16_t brightnesstheta16 = sPseudotime;
+#endif
 
 		for (uint16_t i = 0; i < LedCount; i++)
 		{
 			hue16 += hueinc16;
-			uint8_t hue8 = hue16 / 256;
+			uint8_t hue8 = hue16 >> 8;
+			/*
 			uint16_t h16_128 = hue16 >> 7;
 			if (h16_128 & 0x100)
 			{
@@ -776,22 +783,43 @@ class NeoGroup
 			{
 				hue8 = h16_128 >> 1;
 			}
+			*/
 
+#ifdef FxColorWavesWithBrightness
 			brightnesstheta16 += brightnessthetainc16;
-			uint16_t b16 = sin16(brightnesstheta16) + 32768;
-
-			uint16_t bri16 = (uint32_t)((uint32_t)b16 * (uint32_t)b16) / 65536;
-			uint8_t bri8 = (uint32_t)(((uint32_t)bri16) * brightdepth) / 65536;
-			bri8 += (255 - brightdepth);
-
+			uint16_t b16 = sin16(brightnesstheta16) | 0x8000;
+			uint16_t bri16 = (uint32_t)((uint32_t)b16 * (uint32_t)b16) >> 16;
+			uint8_t bri8 = (uint32_t)(((uint32_t)bri16) * brightdepth) >> 16;
+			bri8 += (brightdepth ^ 0xff);
+#endif
 			uint8_t index = hue8;
-			//index = triwave8( index);
-			index = scale8(index, 240);
+			// //index = triwave8( index);
+			//index = scale8(index, 240);
 
-			CRGB newcolor = ColorFromPalette(colorPalette, index, bri8);
 			uint16_t pixelnumber = i;
-			pixelnumber = (LedCount - 1) - pixelnumber;
-			//nblend(ledarray[pixelnumber], newcolor, 128);
+			/*
+			if (i < 8)
+			{
+				DEBUG_GRP_PRINT("GRP[" + String(GroupID) + "].FxColorWaves: Getting palette color for pixel ");
+				DEBUG_GRP_PRINT(pixelnumber);
+				DEBUG_GRP_PRINT(" based on hue8 ");
+				DEBUG_GRP_PRINT(hue8, HEX);
+				DEBUG_GRP_PRINT(" hue16 ");
+				DEBUG_GRP_PRINT(hue16, HEX);
+				DEBUG_GRP_PRINT(" at index ");
+				DEBUG_GRP_PRINT(index, HEX);
+#ifdef FxColorWavesWithBrightness
+				DEBUG_GRP_PRINT(" with bri8 ");
+				DEBUG_GRP_PRINT(bri8, HEX);
+#endif
+				DEBUG_GRP_PRINTLN(".");
+			}
+			*/
+#ifdef FxColorWavesWithBrightness
+			CRGB newcolor = ColorFromPalette(colorPalette, index, bri8);
+#else
+			CRGB newcolor = ColorFromPalette(colorPalette, index);
+#endif
 			SetPixel(pixelnumber, newcolor, fxMirror, true);
 		}
 	}
@@ -802,6 +830,10 @@ class NeoGroup
 		static uint8_t slowness = 2;
 		static uint32_t noiseYScale = 0;
 
+		static uint16_t indexMin = 0x7fff;
+		static uint16_t indexMax = 0x8000;
+		static uint16_t indexRange = indexMax - indexMin;
+
 		uint8_t currentMillis = millis();
 		if (uint8_t(currentMillis - lastMillis) > 8)
 		{
@@ -810,30 +842,75 @@ class NeoGroup
 			noiseYScale += uint16_t(63) << slowness;
 		}
 
+		uint16_t indexMinNew = indexMin;
+		uint16_t indexMaxNew = indexMax;
 		for (uint16_t i = 0; i < LedCount; i++)
 		{
 			// X location is constant, but we move along the Y at the rate of millis()
 			//uint8_t index = inoise8(uint16_t(i) * 20, noiseYScale);
-			//leds[i] = ColorFromPalette(palette, index);
-			int16_t index = inoise16(uint32_t(i) << 12, noiseYScale);
+			uint16_t index = inoise16(uint32_t((i * 128) / LedCount) << 12, noiseYScale);
 			/*
-			uint8_t hi4 = (index >> 12) & 0xFF; // take the highest 4 bits
-			uint8_t lo8 = (index >> 4) & 0xFF;  // take the next-to-highest 8 bits, ignore the lowest 4 bits
-			uint8_t index8 = (hi4 << 4) | (lo8 & 0x0F);
+			uint8_t hi4 = (index >> 8) & 0xF0; // take the highest 4 bits
+			uint8_t lo4 = (index >> 4) & 0x0F; // take the next-to-highest 8 bits, ignore the lowest 4 bits
+			uint8_t index8 = hi4 | lo4;
 			*/
-			//leds[i] = ColorFromPalette16(palette, index);
+
+			// Dynamically scale calculated index range to get values between 0x0000 and 0xffff
+			if (indexMin > index)
+			{
+				if (indexMinNew > index)
+					indexMinNew = index;
+				index = indexMin;
+			}
+			if (indexMax < index)
+			{
+				if (indexMaxNew < index)
+					indexMaxNew = index;
+				index = indexMax;
+			}
+			uint16_t newIndex = ((uint32_t)(index - indexMin) * uint32_t(0xffff)) / indexRange;
+			// uint8_t index8 = index >> 8;
+
 			uint16_t pixelnumber = i;
-			pixelnumber = (LedCount - 1) - pixelnumber;
 			/*
-			DEBUG_GRP_PRINT("GRP[" + String(GroupID) + "].FxNoise: Getting color from palette for pixel ");
-			DEBUG_GRP_PRINT(pixelnumber);
-			DEBUG_GRP_PRINT(" at index16 ");
-			DEBUG_GRP_PRINT(index, HEX);
-			DEBUG_GRP_PRINT(" as index8 ");
-			DEBUG_GRP_PRINTLN(index8, HEX);
+			if (i < 8)
+			{
+				DEBUG_GRP_PRINT("GRP[" + String(GroupID) + "].FxNoise: Getting palette color for pixel ");
+				DEBUG_GRP_PRINT(pixelnumber);
+				// DEBUG_GRP_PRINT(" for noiseYScale ");
+				// DEBUG_GRP_PRINT(noiseYScale);
+				DEBUG_GRP_PRINT(" at index ");
+				DEBUG_GRP_PRINT(newIndex, HEX);
+				DEBUG_GRP_PRINT(" based on index16 ");
+				DEBUG_GRP_PRINT(index, HEX);
+				// DEBUG_GRP_PRINT(" as index8 ");
+				// DEBUG_GRP_PRINT(index8, HEX);
+				DEBUG_GRP_PRINTLN(".");
+			}
 			*/
-			CRGB newcolor = ColorFromPalette16(colorPalette, index);
+			// CRGB newcolor = ColorFromPalette(colorPalette, index8);
+			CRGB newcolor = ColorFromPalette16(colorPalette, newIndex);
 			SetPixel(pixelnumber, newcolor, fxMirror);
+		}
+
+		// Dynamically scale calculated index range to get values between 0x0000 and 0xffff
+		if (indexMin > indexMinNew)
+		{
+			indexMin = indexMinNew;
+			indexRange = indexMax - indexMin;
+			DEBUG_GRP_PRINT("GRP[" + String(GroupID) + "].FxNoise: new indexMin=");
+			DEBUG_GRP_PRINT(indexMin, HEX);
+			DEBUG_GRP_PRINT(", new indexRange=");
+			DEBUG_GRP_PRINTLN(indexRange, HEX);
+		}
+		if (indexMax < indexMaxNew)
+		{
+			indexMax = indexMaxNew;
+			indexRange = indexMax - indexMin;
+			DEBUG_GRP_PRINT("GRP[" + String(GroupID) + "].FxNoise: new indexMax=");
+			DEBUG_GRP_PRINT(indexMax, HEX);
+			DEBUG_GRP_PRINT(", new indexRange=");
+			DEBUG_GRP_PRINTLN(indexRange, HEX);
 		}
 	}
 #pragma endregion
