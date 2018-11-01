@@ -25,97 +25,102 @@ const CRGB LED_GRAY_MEDIUM = 0x202020;
 const CRGB LED_GRAY_LIGHT = 0x404040;
 const CRGB LED_WHITE = 0xFFFFFF;
 
-const std::vector<String> WorldCupTeamKeys = {
+const std::vector<String> BundesligaTeamKeys = {
     // "TEST1", "TEST2",
-    "RUS", "KSA", "EGY", "URU", // Group A
-    "POR", "ESP", "MAR", "IRN", // Group B
-    "FRA", "AUS", "PER", "DEN", // Group C
-    "ARG", "ISL", "CRO", "NGA", // Group D
-    "BRA", "SUI", "CRC", "SRB", // Group E
-    "GER", "MEX", "SWE", "KOR", // Group F
-    "BEL", "PAN", "TUN", "ENG", // Group G
-    "POL", "SEN", "COL", "JPN", // Group H
-};
+    "BVB",
+    "FCB",
+    "BMG",
+    "WB",
+    "RBL",
+    "BSC",
+    "FFM",
+    "TSG",
+    "FCA",
+    "VFL",
+    "SCF",
+    "B04",
+    "M05",
+    "FCN",
+    "S04",
+    "H96",
+    "F95",
+    "VFB",
+    "1FCK",
+    "SCP",
+    "ABI",
+    "HSV",
+    "FL13",
+    "ESC",
+    "FCRB"};
 
-const std::map<String, String> WorldCupTeamNames =
+const std::map<String, String> BundesligaTeamNames =
     {
         // {"TEST1", "Test 1"},
         // {"TEST2", "Test 2"},
-        {"RUS", "Russland"},
-        {"KSA", "S.Arabien"},
-        {"EGY", "Ägypten"},
-        {"URU", "Uruguay"},
-        {"POR", "Portugal"},
-        {"ESP", "Spanien"},
-        {"MAR", "Marokko"},
-        {"IRN", "Iran"},
-        {"FRA", "Frankreich"},
-        {"AUS", "Australien"},
-        {"PER", "Peru"},
-        {"DEN", "Dänemark"},
-        {"ARG", "Argentinien"},
-        {"ISL", "Island"},
-        {"CRO", "Kroatien"},
-        {"NGA", "Nigeria"},
-        {"BRA", "Brasilien"},
-        {"SUI", "Schweiz"},
-        {"CRC", "Costa Rica"},
-        {"SRB", "Serbien"},
-        {"GER", "Deutschland"},
-        {"MEX", "Mexiko"},
-        {"SWE", "Schweden"},
-        {"KOR", "Korea"},
-        {"BEL", "Belgien"},
-        {"PAN", "Panama"},
-        {"TUN", "Tunesien"},
-        {"ENG", "England"},
-        {"POL", "Polen"},
-        {"SEN", "Senegal"},
-        {"COL", "Colombia"},
-        {"JPN", "Japan"},
-};
+        //{"BVB", "Borussia Dortmund"},
+        {"BVB", "BVB Dortmund"},
+        {"FCB", "Bayern München"},
+        //{"BMG", "Borussia Mönchengladbach"},
+        {"BMG", "Mönchengladbach"},
+        {"WB", "Werder Bremen"},
+        {"RBL", "RB Leipzig"},
+        {"BSC", "Herta BSC"},
+        //{"FFM", "Eintracht Frankfurt"},
+        {"FFM", "E. Frankfurt"},
+        {"TSG", "TSG Hoffenheim"},
+        {"FCA", "FC Augsburg"},
+        {"VFL", "VfL Wolfsburg"},
+        {"SCF", "SC Freiburg"},
+        //{"B04", "Bayer 04 Leverkusen"},
+        {"B04", "B04 Leverkusen"},
+        {"M05", "1.FC Mainz 05"},
+        {"FCN", "1.FC Nürnberg"},
+        {"S04", "Schalke 04"},
+        {"H96", "Hannover 96"},
+        //{"F95", "Fortuna Düsseldorf"},
+        {"F95", "F. Düsseldorf"},
+        {"VFB", "VfB Stuttgard"},
+        {"1FCK", "1.FC Köln"},
+        {"SCP", "SC Paderborn"},
+        //{"ABI", "Arminia Bielefeld"},
+        {"ABI", "A. Bielefeld"},
+        {"HSV", "Hamburg HSV"},
+        {"FL13", "Feenland 13"},
+        {"ESC", "Einhorner SC"},
+        {"FCRB", "FC Rainbow"}};
 
-const std::map<String, std::vector<CRGB>> WorldCupTeamColors =
+const std::map<String, std::vector<CRGB>> BundesligaTeamColors =
     {
         // {"TEST1", {0xFFFFFF, 0x808080, 0x404040}},
         // {"TEST2", {0x404040, 0x202020, 0x101010}},
-        {"RUS", {0xFFFFFF, 0xFFFFFF, 0x0039A6, 0x0039A6, 0xD52B1E, 0xD52B1E}},
-        {"KSA", {0x006C35, 0x006C35, 0xFFFFFF, 0xFFFFFF, 0x006C35, 0x006C35}},
-        {"EGY", {0xCE1126, 0xCE1126, 0xFFFFFF, 0xFFFFFF, 0x080808, 0x080808}},
-        {"URU", {0x0038A8, 0xFFFFFF, 0xFCD116, 0x0038A8, 0xFFFFFF, 0x0038A8}},
-        {"POR", {0x006600, 0x006600, 0xFFFF00, 0xFF0000, 0xFF0000, 0xFF0000}},
-        {"ESP", {0xC60B1E, 0xC60B1E, 0xFFC400, 0xFFC400, 0xC60B1E, 0xC60B1E}},
-        {"MAR", {0xC1272D, 0xC1272D, 0x006233, 0x006233, 0xC1272D, 0xC1272D}},
-        {"IRN", {0x239F40, 0x239F40, 0xFFFFFF, 0xFFFFFF, 0xDA0000, 0xDA0000}},
-        {"FRA", {0x002395, 0x002395, 0xFFFFFF, 0xFFFFFF, 0xED2939, 0xED2939}},
-        {"AUS", {0x012169, 0x012169, 0xFFFFFF, 0xE4002B, 0xFFFFFF, 0x012169}},
-        {"PER", {0xD91023, 0xD91023, 0xFFFFFF, 0xFFFFFF, 0xD91023, 0xD91023}},
-        {"DEN", {0xC60C30, 0xFFFFFF, 0xC60C30, 0xFFFFFF, 0xC60C30, 0xC60C30}},
-        {"ARG", {0x74ACDF, 0x74ACDF, 0xFFFFFF, 0xFFFFFF, 0xF6B40E, 0xF6B40E}},
-        {"ISL", {0x02529C, 0xFFFFFF, 0xDC1E35, 0xFFFFFF, 0x02529C, 0x02529C}},
-        {"CRO", {0xFF0000, 0xFF0000, 0xFFFFFF, 0xFFFFFF, 0x171796, 0x171796}},
-        {"NGA", {0x008751, 0x008751, 0xFFFFFF, 0xFFFFFF, 0x008751, 0x008751}},
-        {"BRA", {0x009B3A, 0xFEDF00, 0x002776, 0x002776, 0xFEDF00, 0x009B3A}},
-        {"SUI", {0xD52B1E, 0xD52B1E, 0xFFFFFF, 0xFFFFFF, 0xD52B1E, 0xD52B1E}},
-        {"CRC", {0x002B7F, 0xFFFFFF, 0xCE1126, 0xCE1126, 0xFFFFFF, 0x002B7F}},
-        {"SRB", {0xC6363C, 0xC6363C, 0x0C4076, 0x0C4076, 0xFFFFFF, 0xFFFFFF}},
-        {"GER", {0x080808, 0x080808, 0xDD0000, 0xDD0000, 0xFFCE00, 0xFFCE00}},
-        {"MEX", {0x006847, 0x006847, 0xFFFFFF, 0xFFFFFF, 0xCE1126, 0xCE1126}},
-        {"SWE", {0x006BA8, 0x006BA8, 0xFECD01, 0xFECD01, 0x006BA8, 0x006BA8}},
-        {"KOR", {0xFFFFFF, 0xC60C30, 0xC60C30, 0x003478, 0x003478, 0xFFFFFF}},
-        {"BEL", {0x080808, 0x080808, 0xFAE042, 0xFAE042, 0xED2939, 0xED2939}},
-        {"PAN", {0xFFFFFF, 0xD21034, 0xD21034, 0x005293, 0x005293, 0xFFFFFF}},
-        {"TUN", {0xE70013, 0xE70013, 0xFFFFFF, 0xFFFFFF, 0xE70013, 0xE70013}},
-        {"ENG", {0xFFFFFF, 0xFFFFFF, 0xCF081F, 0xCF081F, 0xFFFFFF, 0xFFFFFF}},
-        {"POL", {0xDC143C, 0xDC143C, 0xDC143C, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF}},
-        {"SEN", {0x00853F, 0x00853F, 0xFDEF42, 0xFDEF42, 0xE31B23, 0xE31B23}},
-        {"COL", {0xFCD116, 0xFCD116, 0x003893, 0x003893, 0xCE1126, 0xCE1126}},
-        {"JPN", {0xFFFFFF, 0xFFFFFF, 0xBC002D, 0xBC002D, 0xFFFFFF, 0xFFFFFF}},
-};
+        {"BVB", {0xFEE101, 0xFEE101, 0xFEE101, 0xFEE101, 0x404040, 0x404040}},
+        {"FCB", {0xC80024, 0xC80024, 0xE2032F, 0xE2032F, 0x404040, 0x404040}},
+        {"BMG", {0x007F4C, 0x007F4C, 0x01AB7C, 0x01AB7C, 0xFFFFFF, 0xFFFFFF}},
+        {"WB", {0x008B6C, 0x008B6C, 0x008B6C, 0x008B6C, 0xFFFFFF, 0xFFFFFF}},
+        {"RBL", {0xFFFFFF, 0xFFFFFF, 0xBA1205, 0xBA1205, 0xFDE500, 0xFDE500}},
+        {"BSC", {0x3C7AE7, 0x3C7AE7, 0x1445AB, 0x1445AB, 0xFFFFFF, 0xFFFFFF}},
+        {"FFM", {0x5E5E5E, 0x5E5E5E, 0x5E5E5E, 0x5E5E5E, 0xE00211, 0xE00211}},
+        {"TSG", {0x0188E4, 0x0188E4, 0x0052AA, 0x0052AA, 0xFFFFFF, 0xFFFFFF}},
+        {"FCA", {0xFFFFFF, 0xFFFFFF, 0xBA3733, 0xBA3733, 0x0EAC58, 0x0EAC58}},
+        {"VFL", {0x1C9E75, 0x1C9E75, 0x487F7F, 0x487F7F, 0x1E3636, 0x1E3636}},
+        {"SCF", {0xE64B49, 0xE64B49, 0xCC1C27, 0xCC1C27, 0x404040, 0x404040}},
+        {"B04", {0x404040, 0x404040, 0xA0171E, 0xA0171E, 0xE24745, 0xE24745}},
+        {"M05", {0xAC2A28, 0xAC2A28, 0x842022, 0x842022, 0xFFFFFF, 0xFFFFFF}},
+        {"FCN", {0x770C18, 0x770C18, 0xD63C46, 0xD63C46, 0xFFFFFF, 0xFFFFFF}},
+        {"S04", {0x1666C9, 0x1666C9, 0x0F2684, 0x0F2684, 0xFFFFFF, 0xFFFFFF}},
+        {"H96", {0x73111A, 0x73111A, 0xA63139, 0xA63139, 0xFFFFFF, 0xFFFFFF}},
+        {"F95", {0xE62625, 0xE62625, 0x720D15, 0x720D15, 0xFFFFFF, 0xFFFFFF}},
+        {"VFB", {0xE34039, 0xE34039, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF}},
+        {"1FCK", {0xE52941, 0xE52941, 0xE52941, 0xE52941, 0xFFFFFF, 0xFFFFFF}},
+        {"SCP", {0x0D68C3, 0x0D68C3, 0x404040, 0x404040, 0x404040, 0x404040}},
+        {"ABI", {0x174CBE, 0x174CBE, 0x404040, 0x404040, 0xFFFFFF, 0xFFFFFF}},
+        {"HSV", {0x138EAD, 0x138EAD, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF}},
+        {"FL13", {0xFA96B2, 0xFA96B2, 0x8F4F82, 0x8F4F82, 0x9E7396, 0x9E7396}},
+        {"ESC", {0xD90B7C, 0xD90B7C, 0xFDBC0C, 0xFDBC0C, 0x13C5AB, 0x13C5AB}},
+        {"FCRB", {0xDF151A, 0xFD8603, 0xF4F328, 0x00DA3C, 0x00CBE7, 0xAA00FF}}};
 
-// static uint8_t WorldCupTeamValues[] = {0, 1}; // TEST1, TEST2
-static uint8_t WorldCupTeamValues[] = {20, 16}; // GER, BRA
-static String WorldCupTeamLabels[] = {"", ""};
+static uint8_t BundesligaTeamValues[] = {0, 1}; // BVB FCB
+//static String BundesligaTeamLabels[] = {"", ""};
 
 static std::map<String, std::vector<CRGB>> TeamColorPalettes[] =
     {
@@ -334,12 +339,12 @@ std::vector<CRGB> AnalogousPaletteFromHue(
 static void CreateTeamColorPalettes(int teamNr)
 {
     DEBUG_PRINTLN("Initializing team " + String(teamNr + 1) + "...");
-    String teamKey = WorldCupTeamKeys.at(WorldCupTeamValues[teamNr]);
+    String teamKey = BundesligaTeamKeys.at(BundesligaTeamValues[teamNr]);
 
-    DEBUG_PRINTLN("Team:" + teamKey + " -> " + WorldCupTeamNames.find(teamKey)->second);
-    WorldCupTeamLabels[teamNr] = WorldCupTeamNames.find(teamKey)->second;
+    DEBUG_PRINTLN("Team:" + teamKey + " -> " + BundesligaTeamNames.find(teamKey)->second);
+    //BundesligaTeamLabels[teamNr] = BundesligaTeamNames.find(teamKey)->second;
 
-    std::vector<CRGB> teamColors = WorldCupTeamColors.find(teamKey)->second;
+    std::vector<CRGB> teamColors = BundesligaTeamColors.find(teamKey)->second;
     TeamColorPalettes[teamNr]["Idle"] = //AnalogousPaletteFromHue(TeamHueValues[teamNr]);
         {
             LED_BLACK,

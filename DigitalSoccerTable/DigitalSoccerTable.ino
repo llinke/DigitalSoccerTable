@@ -683,11 +683,11 @@ void SetEffect(int grpNr, int fxNr,
 void InitColorNames()
 {
 	InitColorPalettes();
-	teamKeys[0] = WorldCupTeamKeys.at(WorldCupTeamValues[0]);
-	teamNames[0] = WorldCupTeamNames.find(teamKeys[0])->second;
+	teamKeys[0] = BundesligaTeamKeys.at(BundesligaTeamValues[0]);
+	teamNames[0] = BundesligaTeamNames.find(teamKeys[0])->second;
 	DEBUG_PRINTLN("Changing team #1 to " + teamKeys[0] + " (" + teamNames[0] + ").");
-	teamKeys[1] = WorldCupTeamKeys.at(WorldCupTeamValues[1]);
-	teamNames[1] = WorldCupTeamNames.find(teamKeys[1])->second;
+	teamKeys[1] = BundesligaTeamKeys.at(BundesligaTeamValues[1]);
+	teamNames[1] = BundesligaTeamNames.find(teamKeys[1])->second;
 	DEBUG_PRINTLN("Changing team #2 to " + teamKeys[1] + " (" + teamNames[1] + ").");
 }
 
@@ -1978,13 +1978,13 @@ void loop()
 		{
 			int teamNr = changeColorForTeam;
 			changeColorForTeam = -1;
-			WorldCupTeamValues[teamNr]++;
-			if (WorldCupTeamValues[teamNr] >= WorldCupTeamKeys.size())
+			BundesligaTeamValues[teamNr]++;
+			if (BundesligaTeamValues[teamNr] >= BundesligaTeamKeys.size())
 			{
-				WorldCupTeamValues[teamNr] = 0;
+				BundesligaTeamValues[teamNr] = 0;
 			}
-			teamKeys[teamNr] = WorldCupTeamKeys.at(WorldCupTeamValues[teamNr]);
-			teamNames[teamNr] = WorldCupTeamNames.find(teamKeys[teamNr])->second;
+			teamKeys[teamNr] = BundesligaTeamKeys.at(BundesligaTeamValues[teamNr]);
+			teamNames[teamNr] = BundesligaTeamNames.find(teamKeys[teamNr])->second;
 			DEBUG_PRINTLN("Changing team #" + String(teamNr + 1) + " to " + teamKeys[teamNr] + " (" + teamNames[teamNr] + ").");
 			CreateTeamColorPalettes(teamNr);
 			SetColors(teamNr + 1, "Idle");

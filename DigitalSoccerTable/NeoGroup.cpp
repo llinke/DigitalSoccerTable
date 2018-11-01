@@ -92,6 +92,7 @@ class NeoGroup
 	int LedOffset = 0;
 
 	int fxFps;
+	double fxFpsFactor = 1.0;
 	unsigned long lastUpdate;
 	int fxStep;
 	int fxSpeed = 1;
@@ -157,13 +158,15 @@ class NeoGroup
 		direction direction = FORWARD,
 		mirror mirror = MIRROR0,
 		wave wave = LINEAR,
-		int speed = 1)
+		int speed = 1,
+		double fpsFactor = 1.0)
 	{
 		DEBUG_GRP_PRINTLN("GRP[" + String(GroupID) + "].CfgFX: Stopping effect execution.");
 		Stop(true);
 
 		DEBUG_GRP_PRINTLN("GRP[" + String(GroupID) + "].CfgFX: Configuring effect parameters.");
 		ChangeFps(fps);
+		fxFpsFactor = fpsFactor;
 		fxDirection = direction;
 		fxStep = (fxDirection == REVERSE) ? 255 : 0;
 		fxSpeed = speed;
@@ -376,7 +379,7 @@ class NeoGroup
 			return false; // LEDs not updated
 		}
 
-		int updateInterval = (1000 / fxFps);
+		int updateInterval = (1000 / (fxFps * fxFpsFactor));
 		int sinceLastUpdate = (millis() - lastUpdate);
 		if (sinceLastUpdate > updateInterval)
 		{
@@ -406,7 +409,7 @@ class NeoGroup
 			int timesToUpdate = constrain(sinceLastUpdate / updateInterval, 1, 8); // skip max 8 steps
 			if (timesToUpdate > 1)
 			{
-				DEBUG_GRP_PRINTLN("GRP[" + String(GroupID) + "].Update: skipping " + String(timesToUpdate - 1) + " steps to catch up target FPS " + String(fxFps) + ".");
+				DEBUG_GRP_PRINTLN("GRP[" + String(GroupID) + "].Update: skipping " + String(timesToUpdate - 1) + " steps to catch up target FPS " + String(fxFps * fxFpsFactor) + ".");
 				if (Active)
 					NextFxStep(timesToUpdate - 1);
 			}
@@ -704,7 +707,9 @@ class NeoGroup
 		// 			  "step " + String(fxStep) +
 		// 			  ", pixel " + String(pos) +
 		// 			  ", color " + String(colpos) + ".");
-		SetPixel(pos, ColorFromPalette(colorPalette, colpos, bright), fxMirror, true);
+		SetPixel(pos, ColorFromPalette(colorPalette, colpos, bright), fxMirror, true);														// blending OK
+		SetPixel(constrain(pos + random(1, variant > 1), 0, LedCount), ColorFromPalette(colorPalette, colpos, bright > 1), fxMirror, true); // blending OK
+		SetPixel(constrain(pos - random(1, variant > 1), 0, LedCount), ColorFromPalette(colorPalette, colpos, bright > 1), fxMirror, true); // blending OK
 		NextFxStep();
 	}
 
@@ -750,15 +755,16 @@ class NeoGroup
 		static uint16_t sLastMillis = 0;
 		static uint16_t sHue16 = 0;
 
-		uint8_t sat8 = beatsin88(87, 220, 250);
-		uint8_t brightdepth = beatsin88(341, 96, 224);
+		// uint8_t sat8 = beatsin88(87, 220, 250);
 #ifdef FxColorWavesWithBrightness
-		uint16_t brightnessthetainc16 = beatsin88(203, (25 << 8), (40 << 8));
+		uint8_t brightdepth = beatsin88(341, 96, 224);
+		uint16_t brightnessthetainc16 = beatsin88(203, (25 * 256), (40 * 256));
 #endif
 		uint8_t msmultiplier = beatsin88(147, 23, 60);
 
-		uint16_t hue16 = sHue16; //gHue * 256;
-		uint16_t hueinc16 = beatsin88(113, 300, 1500);
+		uint16_t hue16 = sHue16;
+		// uint16_t hueinc16 = beatsin88(113, 300, 1500);
+		uint16_t hueinc16 = beatsin88(113, 150, 600);
 
 		uint16_t ms = millis();
 		uint16_t deltams = ms - sLastMillis;
@@ -772,7 +778,7 @@ class NeoGroup
 		for (uint16_t i = 0; i < LedCount; i++)
 		{
 			hue16 += hueinc16;
-			uint8_t hue8 = hue16 >> 8;
+			uint8_t hue8 = hue16 / 256;
 			/*
 			uint16_t h16_128 = hue16 >> 7;
 			if (h16_128 & 0x100)
@@ -787,15 +793,11 @@ class NeoGroup
 
 #ifdef FxColorWavesWithBrightness
 			brightnesstheta16 += brightnessthetainc16;
-			uint16_t b16 = sin16(brightnesstheta16) | 0x8000;
-			uint16_t bri16 = (uint32_t)((uint32_t)b16 * (uint32_t)b16) >> 16;
-			uint8_t bri8 = (uint32_t)(((uint32_t)bri16) * brightdepth) >> 16;
-			bri8 += (brightdepth ^ 0xff);
+			uint16_t b16 = sin16(brightnesstheta16) + 32768;
+			uint16_t bri16 = (uint32_t)((uint32_t)b16 * (uint32_t)b16) / 65536;
+			uint8_t bri8 = (uint32_t)(((uint32_t)bri16) * brightdepth) / 65536;
+			bri8 += (255 - brightdepth);
 #endif
-			uint8_t index = hue8;
-			// //index = triwave8( index);
-			//index = scale8(index, 240);
-
 			uint16_t pixelnumber = i;
 			/*
 			if (i < 8)
@@ -816,11 +818,14 @@ class NeoGroup
 			}
 			*/
 #ifdef FxColorWavesWithBrightness
-			CRGB newcolor = ColorFromPalette(colorPalette, index, bri8);
+			// CRGB newcolor = ColorFromPalette(colorPalette, hue8, bri8);
+			CRGB newcolor = ColorFromPalette16(colorPalette, hue16, bri8);
 #else
-			CRGB newcolor = ColorFromPalette(colorPalette, index);
+			// CRGB newcolor = ColorFromPalette(colorPalette, hue8);
+			CRGB newcolor = ColorFromPalette16(colorPalette, hue16);
 #endif
-			SetPixel(pixelnumber, newcolor, fxMirror, true);
+			// SetPixel(pixelnumber, newcolor, fxMirror, false); // don't blend
+			SetPixel(pixelnumber, newcolor, fxMirror, true); // blend?
 		}
 	}
 
@@ -869,7 +874,7 @@ class NeoGroup
 				index = indexMax;
 			}
 			uint16_t newIndex = ((uint32_t)(index - indexMin) * uint32_t(0xffff)) / indexRange;
-			// uint8_t index8 = index >> 8;
+			uint8_t index8 = newIndex >> 8;
 
 			uint16_t pixelnumber = i;
 			/*
